@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market | PokePop Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --red:#CC0000; --blue:#1B4F9E; --yellow:#FFD700;
+      --dark:#1A1A2E; --bg:#EDF2F7; --panel:#FFFFFF;
+      --border:#CBD5E0; --text:#1A202C; --muted:#718096;
+      --pixel:'Press Start 2P',monospace; --orange:#F97316;
+    }
+    *{box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+      background-image:radial-gradient(circle,#CBD5E0 1px,transparent 1px);
+      background-size:22px 22px;min-height:100vh;}
+    .panel{background:white;border:2px solid var(--border);border-radius:10px;}
+    input,select{background:#FAFAFA;border:1.5px solid var(--border);color:var(--text);
+      outline:none;border-radius:6px;padding:8px 12px;}
+    input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(27,79,158,.12);}
+
+    @keyframes rayquaza-bob {
+      0%, 100% { transform: translateY(-2px); }
+      50%       { transform: translateY(6px); }
+    }
+
+    /* Tab system */
+    .cond-tab{padding:6px 12px;font-family:var(--pixel);font-size:6px;
+      border-bottom:3px solid transparent;cursor:pointer;color:var(--muted);
+      white-space:nowrap;transition:all .15s;}
+    .cond-tab.active{border-color:var(--blue);color:var(--blue);}
+    .cond-tab.psa-tab.active{border-color:var(--yellow);color:var(--dark);background:#FFF9E6;}
+    .timeframe-btn{padding:4px 10px;font-family:var(--pixel);font-size:6px;
+      border-radius:5px;border:1.5px solid var(--border);background:white;
+      color:var(--muted);cursor:pointer;transition:all .15s;}
+    .timeframe-btn.active{background:var(--dark);color:var(--yellow);border-color:var(--dark);}
+    .src-btn{padding:5px 12px;font-size:12px;font-weight:600;background:white;color:var(--muted);
+      cursor:pointer;border:none;border-right:1.5px solid var(--border);transition:all .12s;}
+    .src-btn:last-child{border-right:none;}
+    .src-btn.src-active{background:var(--blue);color:white;}
+    .print-btn{padding:5px 14px;font-size:13px;font-weight:700;border-radius:7px;
+      border:1.5px solid var(--border);background:white;color:var(--muted);cursor:pointer;transition:all .12s;}
+    .print-btn:hover{border-color:var(--blue);}
+    .print-btn.print-active{background:var(--dark);color:var(--yellow);border-color:var(--dark);}
+    .ecf-btn{padding:2px 8px;font-size:10px;font-weight:600;border-radius:4px;
+      border:1.5px solid var(--border);background:white;cursor:pointer;transition:all .12s;color:#475569;}
+    .ecf-btn.ecf-active{background:var(--blue);color:white;border-color:var(--blue);}
+
+    .card-pill{cursor:pointer;transition:box-shadow .15s,transform .15s;}
+    .card-pill:hover{box-shadow:0 4px 16px rgba(0,0,0,.12);transform:translateY(-1px);}
+    #chart-wrap{position:relative;height:300px;}
+    .stat-mini{background:white;border:2px solid var(--border);border-radius:8px;
+      padding:10px 14px;text-align:center;}
+    .cond-NM{background:#DCFCE7;color:#15803D;border:1px solid #86EFAC;}
+    .cond-LP{background:#DBEAFE;color:#1D4ED8;border:1px solid #93C5FD;}
+    .cond-MP{background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;}
+    .cond-HP{background:#FED7AA;color:#9A3412;border:1px solid #FDBA74;}
+    .cond-DMG{background:#F3E8FF;color:#6B21A8;border:1px solid #D8B4FE;}
+    .cond-PSA{background:#FEF9C3;color:#713F12;border:1px solid #FDE68A;}
+    .sale-row{display:flex;justify-content:space-between;align-items:center;
+      padding:5px 0;border-top:1px solid var(--border);gap:8px;font-size:13px;}
+    /* Compact, consistent type scale */
+    body{font-size:14px;}
+    .text-xs{font-size:12px !important;}
+    .text-sm{font-size:13px !important;}
+    .cs-btn,.cs-item{font-size:13px !important;}
+    .ecf-btn{font-size:11px !important;}
+    .stat-mini > div:first-child{font-size:7px !important;}
+    #stat-median,#stat-avg,#stat-count,#stat-conf,#stat-low,#stat-high,#stat-gem{font-size:13px !important;}
+    .cond-tab{font-size:12px !important;}
+    .max-w-6xl{max-width:90rem !important;}
+    /* Custom select */
+    .cs-wrap{position:relative;display:inline-block;}
+    .cs-wrap.cs-full{width:100%;}
+    .cs-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;
+      padding:6px 10px;background:white;border:1.5px solid var(--border);border-radius:6px;
+      font-size:13px;color:var(--dark);cursor:pointer;text-align:left;min-height:34px;}
+    .cs-btn:hover{border-color:var(--blue);}
+    .cs-btn:focus{outline:none;border-color:var(--blue);}
+    .cs-arrow{flex-shrink:0;font-size:9px;color:var(--muted);transition:transform .15s;}
+    .cs-wrap.cs-open .cs-arrow{transform:rotate(180deg);}
+    .cs-list{position:fixed;z-index:99999;
+      background:white;border:1.5px solid var(--border);border-radius:8px;
+      box-shadow:0 8px 30px rgba(0,0,0,.18);max-height:280px;overflow-y:auto;display:none;}
+    .cs-wrap.cs-open .cs-list{display:block;}
+    .cs-item{padding:8px 12px;font-size:13px;cursor:pointer;color:var(--dark);}
+    .cs-item:hover{background:#EBF4FF;}
+    .cs-item.cs-sel{background:#EBF4FF;color:var(--blue);font-weight:600;}
+    .cs-val{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .sale-row a{color:var(--blue);text-decoration:none;}
+    .sale-row a:hover{text-decoration:underline;}
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+{% include 'nav.html' %}
+
+<div class="max-w-6xl mx-auto px-4 py-5 space-y-4">
+
+  <!-- TOP BAR: Search + Set Browse tabs -->
+  <div class="panel p-0 overflow-hidden">
+    <!-- Mode tabs -->
+    <div class="flex" style="border-bottom:2px solid var(--border);background:#F7FAFC;">
+      <button id="tab-search" onclick="switchMode('search')"
+        style="font-family:var(--pixel);font-size:7px;padding:10px 20px;border-bottom:3px solid var(--red);color:var(--red);background:white;cursor:pointer;border-right:1px solid var(--border);">
+        SEARCH CARDS
+      </button>
+      <button id="tab-browse" onclick="switchMode('browse')"
+        style="font-family:var(--pixel);font-size:7px;padding:10px 20px;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer;">
+        BROWSE BY SET
+      </button>
+    </div>
+    <!-- Search mode -->
+    <div id="mode-search" class="p-4">
+      <div class="flex gap-3 items-center flex-wrap">
+        <input id="search-input" type="text" placeholder="Search — Charizard, Umbreon 86, Undaunted 2010, misspelling ok…"
+          class="flex-1 text-sm" style="min-width:200px;font-size:14px;" />
+        <!-- Printing is chosen per-card via toggle buttons on the card view.
+             This select is kept hidden as a state holder. -->
+        <select id="foil-filter" style="display:none">
+          <option value="holofoil">Holofoil</option>
+          <option value="reverseHolofoil">Reverse Holo</option>
+          <option value="normal">Normal</option>
+          <option value="1stEditionHolofoil">1st Ed. Holo</option>
+          <option value="unlimitedHolofoil">Unlimited Holo</option>
+          <option value="1stEditionNormal">1st Ed. Normal</option>
+          <option value="etchedFoil">Etched</option>
+        </select>
+        <button onclick="doSearch()"
+          style="background:var(--red);color:white;font-family:var(--pixel);font-size:8px;
+            padding:10px 18px;border-radius:7px;border:none;cursor:pointer;">
+          SEARCH
+        </button>
+      </div>
+    </div>
+    <!-- Browse mode -->
+    <div id="mode-browse" class="p-4 hidden">
+      <div class="flex gap-3 items-center flex-wrap">
+        <select id="set-select-browse" class="flex-1 text-sm"
+          onchange="loadSetBrowse(this.value)" style="max-width:400px;">
+          <option value="">Select a set…</option>
+        </select>
+        <select id="browse-sort" class="text-sm" style="width:160px;" onchange="applyBrowseSort()">
+          <option value="number">Sort: Card #</option>
+          <option value="price-high">Sort: Price ↓</option>
+          <option value="price-low">Sort: Price ↑</option>
+          <option value="name">Sort: Name</option>
+        </select>
+        <span id="browse-count" style="font-family:var(--pixel);font-size:7px;color:var(--muted);"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BROWSE SET GRID (full width, shown in browse mode) -->
+  <div id="browse-grid-panel" class="hidden panel p-0 overflow-hidden">
+    <div style="background:linear-gradient(135deg,var(--dark),#0F3460);padding:10px 16px;border-bottom:2px solid var(--yellow);">
+      <div style="font-family:var(--pixel);font-size:7px;color:var(--yellow);" id="browse-set-title">SELECT A SET</div>
+    </div>
+    <div id="browse-grid" class="p-4" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;min-height:200px;">
+      <div style="color:var(--muted);padding:16px;font-size:13px;grid-column:1/-1;">Select a set above to browse cards</div>
+    </div>
+  </div>
+
+  <!-- SPLIT: results list + detail -->
+  <div id="search-split" class="flex gap-4" style="align-items:flex-start;">
+
+    <!-- RESULTS LIST -->
+    <div class="panel overflow-hidden flex-shrink-0" style="width:270px;">
+      <div style="background:linear-gradient(135deg,var(--dark),#0F3460);padding:10px 14px;border-bottom:2px solid var(--yellow);">
+        <div style="font-family:var(--pixel);font-size:7px;color:var(--yellow);">SEARCH RESULTS</div>
+      </div>
+      <div id="result-list" class="p-3 space-y-2 overflow-y-auto" style="max-height:680px;">
+        <div class="text-sm py-6 text-center" style="color:var(--muted)">Search above to find cards</div>
+      </div>
+    </div>
+
+    <!-- DETAIL PANEL -->
+    <div class="flex-1 min-w-0 space-y-4">
+
+      <div id="detail-placeholder" class="panel p-8" style="color:var(--muted);">
+        <div class="text-center" style="margin-bottom:20px;">
+          <div style="font-family:var(--pixel);font-size:9px;color:var(--border);margin-bottom:10px;">SELECT A CARD</div>
+          <div class="text-sm">Search and click any card to see condition-by-condition price history and recent sales</div>
+        </div>
+        <div id="watchlist-section" style="display:none;margin-bottom:18px;">
+          <div style="font-family:var(--pixel);font-size:8px;color:var(--red);margin-bottom:8px;">★ WATCHLIST</div>
+          <div id="watchlist-grid" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div id="recent-section" style="display:none;">
+          <div style="font-family:var(--pixel);font-size:8px;color:var(--blue);margin-bottom:8px;">RECENTLY VIEWED</div>
+          <div id="recent-grid" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+
+      <div id="detail-content" class="hidden space-y-4">
+
+        <!-- Card header row -->
+        <div id="det-header" class="panel p-4 flex gap-5 items-start" style="transition:background .5s ease, box-shadow .5s ease;position:relative;overflow:hidden;">
+          <img id="det-img" src="" alt="" onclick="openImgZoom(this.src)"
+            style="width:150px;max-width:34vw;border-radius:9px;flex-shrink:0;box-shadow:0 4px 18px rgba(0,0,0,.22);cursor:zoom-in;transition:transform .18s ease;"
+            onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'" />
+          <div class="flex-1 min-w-0" style="position:relative;z-index:1;">
+            <div id="det-name" style="font-family:var(--pixel);font-size:12px;margin-bottom:8px;line-height:1.7;"></div>
+            <div id="det-meta" class="text-xs mb-3" style="color:var(--muted);"></div>
+            <div id="det-price-row" class="flex flex-wrap gap-2"></div>
+            <div id="det-shop-row" class="flex flex-wrap gap-2 mt-3"></div>
+            <button onclick="openMarketAdd(currentCard, currentPrinting)"
+              class="mt-3" style="background:var(--red);color:#fff;font-family:var(--pixel);font-size:8px;letter-spacing:.4px;padding:9px 14px;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.35);">
+              + ADD TO COLLECTION
+            </button>
+          </div>
+          <button id="watch-btn" onclick="toggleWatch()" title="Add to watchlist"
+            style="flex-shrink:0;font-size:22px;background:none;border:none;cursor:pointer;color:#CBD5E1;position:relative;z-index:1;">★</button>
+          <div id="det-loading" class="text-xs" style="color:var(--muted);white-space:nowrap;position:relative;z-index:1;">Loading…</div>
+        </div>
+
+        <!-- Printing toggle (holo / reverse / normal …) — only applicable ones -->
+        <div id="printing-toggle" class="flex flex-wrap gap-2 items-center" style="display:none;"></div>
+
+        <!-- Condition + Grade tabs -->
+        <div class="panel p-0 overflow-hidden">
+          <div class="flex items-center gap-0 overflow-x-auto" style="border-bottom:2px solid var(--border);background:#F7FAFC;">
+            <!-- Ungraded conditions -->
+            <button class="cond-tab active" data-cond="NM"  onclick="selectCond('NM')">NM</button>
+            <button class="cond-tab"        data-cond="LP"  onclick="selectCond('LP')">LP</button>
+            <button class="cond-tab"        data-cond="MP"  onclick="selectCond('MP')">MP</button>
+            <button class="cond-tab"        data-cond="HP"  onclick="selectCond('HP')">HP</button>
+            <button class="cond-tab"        data-cond="DMG" onclick="selectCond('DMG')">DMG</button>
+            <button class="cond-tab"        data-cond="UNK" onclick="selectCond('UNK')" title="Raw sales with no stated condition">RAW?</button>
+            <div style="width:1px;background:var(--border);margin:6px 4px;height:22px;flex-shrink:0;"></div>
+            <!-- PSA grades 10 → 1 (multi-select: click several to overlay) -->
+            <button class="cond-tab psa-tab" data-cond="PSA-10" onclick="selectCond('PSA-10')">PSA 10</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-9"  onclick="selectCond('PSA-9')">PSA 9</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-8"  onclick="selectCond('PSA-8')">PSA 8</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-7"  onclick="selectCond('PSA-7')">PSA 7</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-6"  onclick="selectCond('PSA-6')">PSA 6</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-5"  onclick="selectCond('PSA-5')">PSA 5</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-4"  onclick="selectCond('PSA-4')">PSA 4</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-3"  onclick="selectCond('PSA-3')">PSA 3</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-2"  onclick="selectCond('PSA-2')">PSA 2</button>
+            <button class="cond-tab psa-tab" data-cond="PSA-1"  onclick="selectCond('PSA-1')">PSA 1</button>
+          </div>
+          <!-- Source switch + timeframe + volume -->
+          <div class="flex items-center gap-2 px-3 py-1.5 overflow-x-auto" style="border-bottom:1px solid var(--border);background:#F7FAFC;">
+            <div id="source-switch" class="flex flex-shrink-0" style="border:1.5px solid var(--border);border-radius:7px;overflow:hidden;">
+              <button class="src-btn"            data-src="tcg"  onclick="setChartSource('tcg')">TCGplayer</button>
+              <button class="src-btn"            data-src="ebay" onclick="setChartSource('ebay')">eBay</button>
+              <button class="src-btn src-active" data-src="both" onclick="setChartSource('both')">Both</button>
+            </div>
+            <label id="incl-unknown-wrap" style="font-size:13px;color:var(--muted);flex-shrink:0;display:none;cursor:pointer;user-select:none;">
+              <input type="checkbox" id="incl-unknown" onchange="toggleIncludeUnknown()" style="vertical-align:middle;margin-right:3px;"> include unknown-condition
+            </label>
+            <span id="vol-info" style="font-size:13px;color:var(--muted);flex-shrink:0;"></span>
+            <div class="ml-auto flex gap-1">
+              <button class="timeframe-btn" data-tf="7"   onclick="setTf(7)">1W</button>
+              <button class="timeframe-btn" data-tf="30"  onclick="setTf(30)">1M</button>
+              <button class="timeframe-btn active" data-tf="90"  onclick="setTf(90)">3M</button>
+              <button class="timeframe-btn" data-tf="180" onclick="setTf(180)">6M</button>
+              <button class="timeframe-btn" data-tf="365" onclick="setTf(365)">1Y</button>
+              <button class="timeframe-btn" data-tf="0"   onclick="setTf(0)">ALL</button>
+            </div>
+          </div>
+
+          <!-- Condition stats bar -->
+          <div id="cond-stats" class="flex gap-3 px-4 py-3 flex-wrap items-center" style="background:#FAFCFF;border-bottom:1px solid var(--border);">
+            <div class="stat-mini" id="stat-current-wrap" style="background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border:1.5px solid #93C5FD;border-radius:8px;padding:6px 12px;">
+              <div style="font-family:var(--pixel);font-size:5px;color:#1D4ED8">MARKET (CURRENT)</div>
+              <div id="stat-current" style="font-family:var(--pixel);font-size:14px;margin-top:4px;color:#1D4ED8;">—</div>
+              <div id="stat-current-note" style="font-size:9px;color:#3B82F6;margin-top:2px;"></div>
+            </div>
+            <div class="stat-mini"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">MEDIAN</div><div id="stat-median" style="font-family:var(--pixel);font-size:11px;margin-top:4px;color:#16A34A;">—</div></div>
+            <div class="stat-mini"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">SAMPLE</div><div id="stat-count" style="font-family:var(--pixel);font-size:11px;margin-top:4px;">—</div></div>
+            <div class="stat-mini"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">CONFIDENCE</div><div id="stat-conf" style="font-family:var(--pixel);font-size:11px;margin-top:4px;">—</div></div>
+            <div class="stat-mini"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">AVG</div><div id="stat-avg" style="font-family:var(--pixel);font-size:11px;margin-top:4px;">—</div></div>
+            <div class="stat-mini"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">LOW</div><div id="stat-low" style="font-family:var(--pixel);font-size:11px;margin-top:4px;">—</div></div>
+            <div class="stat-mini"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">HIGH</div><div id="stat-high" style="font-family:var(--pixel);font-size:11px;margin-top:4px;">—</div></div>
+            <div class="stat-mini" id="stat-gem-wrap" style="display:none"><div style="font-family:var(--pixel);font-size:5px;color:var(--muted)">PSA10 SHARE</div><div id="stat-gem" style="font-family:var(--pixel);font-size:11px;margin-top:4px;color:#EAB308;">—</div></div>
+          </div>
+
+          <!-- eBay Condition Filter (ungraded tabs only) -->
+          <div id="ebay-cond-bar" class="hidden px-4 py-2 flex flex-wrap gap-2 items-center" style="background:#F8FAFC;border-bottom:1px solid var(--border);">
+            <span style="font-size:9px;color:var(--muted);font-family:var(--pixel);flex-shrink:0">eBay FILTER:</span>
+            <div id="ebay-cond-btns" class="flex flex-wrap gap-1"></div>
+            <button onclick="clearEbayFilter()" style="font-size:9px;color:var(--muted);padding:2px 8px;background:#F1F5F9;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-family:var(--pixel);flex-shrink:0">CLEAR</button>
+          </div>
+
+          <!-- Chart -->
+          <div class="p-4" style="background:#FAFCFF;">
+            <div id="chart-wrap">
+              <canvas id="market-chart"></canvas>
+              <div id="chart-empty" class="hidden absolute inset-0 flex items-center justify-center" style="font-size:13px;color:var(--muted);">
+                No sales data for this condition / time range
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent sales list -->
+        <div class="panel p-0 overflow-hidden">
+          <div style="background:linear-gradient(135deg,var(--dark),#0F3460);padding:10px 16px;border-bottom:2px solid var(--yellow);">
+            <div style="font-family:var(--pixel);font-size:7px;color:var(--yellow);" id="sales-panel-title">RECENT SALES</div>
+          </div>
+          <div id="sales-list" class="px-4 py-2 overflow-y-auto" style="max-height:320px;">
+            <div style="color:var(--muted);padding:12px 0;font-size:13px;">Loading…</div>
+          </div>
+        </div>
+
+      </div><!-- /detail-content -->
+    </div><!-- /detail panel -->
+  </div><!-- /search-split -->
+</div><!-- /container -->
+
+<!-- ADD TO COLLECTION MODAL (from market) -->
+<div id="mkt-add-modal" class="hidden" style="position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);"
+     onclick="if(event.target===this)closeMarketAdd()">
+  <div class="panel" style="max-width:380px;width:100%;overflow:hidden;" onclick="event.stopPropagation()">
+    <div style="background:linear-gradient(135deg,var(--dark),#0F3460);padding:12px 18px;border-bottom:3px solid var(--yellow);display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-family:var(--pixel);font-size:9px;color:var(--yellow);">Add to Collection</span>
+      <button onclick="closeMarketAdd()" style="color:#93C5FD;font-size:16px;background:none;border:none;cursor:pointer;">✕</button>
+    </div>
+    <div class="p-4" style="display:flex;flex-direction:column;gap:12px;font-size:14px;">
+      <div style="display:flex;gap:10px;align-items:center;">
+        <img id="mkt-add-img" src="" style="width:44px;border-radius:5px;flex-shrink:0;" onerror="this.style.display='none'"/>
+        <div id="mkt-add-name" style="font-weight:600;font-size:13px;line-height:1.35;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px;">Condition</label>
+          <select id="mkt-add-cond" style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);">
+            <option value="NM">Near Mint</option><option value="LP">Lightly Played</option>
+            <option value="MP">Moderately Played</option><option value="HP">Heavily Played</option>
+            <option value="DMG">Damaged</option>
+            <option value="PSA-10">PSA 10</option><option value="PSA-9">PSA 9</option>
+            <option value="PSA-8">PSA 8</option><option value="PSA-7">PSA 7</option>
+            <option value="PSA-6">PSA 6</option><option value="PSA-5">PSA 5</option>
+            <option value="PSA-4">PSA 4</option><option value="PSA-3">PSA 3</option>
+            <option value="PSA-2">PSA 2</option><option value="PSA-1">PSA 1</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px;">Printing</label>
+          <select id="mkt-add-foil" style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);">
+            <option value="holofoil">Holo</option><option value="reverseHolofoil">Reverse Holo</option>
+            <option value="normal">Normal</option><option value="1stEditionHolofoil">1st Ed. Holo</option>
+            <option value="unlimitedHolofoil">Unltd. Holo</option><option value="1stEditionNormal">1st Ed. Normal</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px;">Quantity</label>
+          <input id="mkt-add-qty" type="number" value="1" min="1" style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);"/>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px;">Price Paid ($)</label>
+          <input id="mkt-add-price" type="number" step="0.01" placeholder="0.00" style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);"/>
+        </div>
+      </div>
+      <button id="mkt-add-btn" onclick="confirmMarketAdd()"
+        style="width:100%;background:var(--red);color:#fff;font-family:var(--pixel);font-size:8px;letter-spacing:.5px;padding:11px;border:none;border-radius:8px;cursor:pointer;">ADD TO COLLECTION</button>
+    </div>
+  </div>
+</div>
+
+<div id="mkt-toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:70;display:none;padding:10px 18px;border-radius:10px;color:#fff;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);"></div>
+
+<!-- Full-size card zoom -->
+<div id="img-zoom" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.82);backdrop-filter:blur(4px);align-items:center;justify-content:center;cursor:zoom-out;">
+  <img id="img-zoom-img" src="" style="max-height:88vh;max-width:92vw;border-radius:14px;box-shadow:0 12px 50px rgba(0,0,0,.6);" />
+</div>
+
+<script>
+function openImgZoom(src){
+  if(!src) return;
+  document.getElementById('img-zoom-img').src = src;
+  document.getElementById('img-zoom').style.display = 'flex';
+}
+
+// Pokemon energy-type → accent color (fallback when image sampling is blocked).
+const TYPE_COLORS = {
+  Fire:'#F08030', Water:'#6890F0', Grass:'#78C850', Lightning:'#F8D030',
+  Psychic:'#F85888', Fighting:'#C03028', Darkness:'#4A4A6A', Metal:'#B8B8D0',
+  Fairy:'#EE99AC', Dragon:'#7038F8', Colorless:'#A8A878', Lightening:'#F8D030'
+};
+
+// Supertype accent when a card has no energy type (Trainers, Energy).
+const SUPERTYPE_COLORS = { 'Trainer':'#5B7DB1', 'Energy':'#8F9BA8' };
+
+// Tint the card-detail header to match the card, keyed off its energy type
+// (Fire→orange, Water→blue, …) with a supertype/slate fallback so every card —
+// Trainer/Energy included — gets a subtle themed background.
+function applyCardTheme(card, imgEl){
+  const header = document.getElementById('det-header');
+  const hex = TYPE_COLORS[(card.types && card.types[0]) || '']
+           || SUPERTYPE_COLORS[card.supertype] || '#94A3B8';
+  const n = parseInt(hex.slice(1), 16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  header.style.background =
+    `linear-gradient(105deg, rgba(${r},${g},${b},0.20) 0%, rgba(${r},${g},${b},0.09) 34%, #ffffff 72%)`;
+  header.style.boxShadow = `0 1px 0 rgba(${r},${g},${b},.25) inset, 0 6px 18px rgba(0,0,0,.05)`;
+}
+</script>
+
+<script>
+const esc = s => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
+
+// ── Add to collection (from the market tab) ───────────────────────────────────
+function mktToast(msg, kind) {
+  const t = document.getElementById('mkt-toast');
+  t.textContent = msg;
+  t.style.background = kind === 'error' ? '#DC2626' : '#16A34A';
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 2600);
+}
+let _mktAddCard = null;
+function openMarketAdd(card, presetFoil) {
+  if (!card) { mktToast('Open or search a card first', 'error'); return; }
+  _mktAddCard = card;
+  const img = document.getElementById('mkt-add-img');
+  img.src = card.image || card.largeImage || ''; img.style.display = '';
+  document.getElementById('mkt-add-name').textContent =
+    `${card.name}${card.number ? ' · #' + card.number : ''}${card.setName ? ' · ' + card.setName : ''}`;
+  document.getElementById('mkt-add-cond').value = 'NM';
+  const foilSel = document.getElementById('mkt-add-foil');
+  const opts = [...foilSel.options].map(o => o.value);
+  foilSel.value = (presetFoil && opts.includes(presetFoil)) ? presetFoil : 'holofoil';
+  document.getElementById('mkt-add-qty').value = 1;
+  document.getElementById('mkt-add-price').value = '';
+  const m = document.getElementById('mkt-add-modal');
+  m.classList.remove('hidden'); m.style.display = 'flex';
+}
+function closeMarketAdd() {
+  const m = document.getElementById('mkt-add-modal');
+  m.classList.add('hidden'); m.style.display = 'none';
+}
+async function confirmMarketAdd() {
+  if (!_mktAddCard) return;
+  const c = _mktAddCard;
+  const btn = document.getElementById('mkt-add-btn');
+  btn.disabled = true;
+  const payload = {
+    card_id: c.id || '', card_name: c.name, set_name: c.setName || '', set_id: c.setId || '',
+    number: c.number || '', language: c.language || 'EN',
+    condition: document.getElementById('mkt-add-cond').value,
+    foil_type: document.getElementById('mkt-add-foil').value,
+    quantity: parseInt(document.getElementById('mkt-add-qty').value) || 1,
+    purchase_price: parseFloat(document.getElementById('mkt-add-price').value) || null,
+    image_url: c.image || c.largeImage || '', rarity: c.rarity || '',
+  };
+  try {
+    const r = await fetch('/api/collection/cards', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    if (r.status === 401) { location.href = '/login'; return; }
+    if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || 'Failed to add');
+    closeMarketAdd();
+    mktToast(`Added ${c.name} (${payload.condition}) to your collection`, 'success');
+  } catch (e) {
+    mktToast('Error: ' + e.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+let activeChart = null;
+let cardData = null;
+let currentCard = null;
+let currentCond = 'NM';
+let currentTf = 90;
+let browseCards = [];
+let ebayCondFilter = new Set(); // empty = show all conditions
+
+// ── Mode switch ───────────────────────────────────────────────────────────────
+function switchMode(mode) {
+  const isSearch = mode === 'search';
+  document.getElementById('tab-search').style.cssText =
+    isSearch ? 'font-family:var(--pixel);font-size:7px;padding:10px 20px;border-bottom:3px solid var(--red);color:var(--red);background:white;cursor:pointer;border-right:1px solid var(--border);'
+             : 'font-family:var(--pixel);font-size:7px;padding:10px 20px;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer;border-right:1px solid var(--border);';
+  document.getElementById('tab-browse').style.cssText =
+    !isSearch ? 'font-family:var(--pixel);font-size:7px;padding:10px 20px;border-bottom:3px solid var(--blue);color:var(--blue);background:white;cursor:pointer;'
+              : 'font-family:var(--pixel);font-size:7px;padding:10px 20px;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer;';
+  document.getElementById('mode-search').classList.toggle('hidden', !isSearch);
+  document.getElementById('mode-browse').classList.toggle('hidden', isSearch);
+  document.getElementById('search-split').classList.toggle('hidden', !isSearch);
+  document.getElementById('browse-grid-panel').classList.toggle('hidden', isSearch);
+}
+
+// ── Set browser ───────────────────────────────────────────────────────────────
+async function initSetSelect() {
+  try {
+    const r = await fetch('/api/sets');
+    const sets = await r.json();
+    const sel = document.getElementById('set-select-browse');
+    sel.innerHTML = '<option value="">Select a set…</option>';
+    sets.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.name} (${s.releaseDate?.slice(0,4)||'?'})`;
+      sel.appendChild(opt);
+    });
+    if (sel._csRebuild) sel._csRebuild();
+  } catch {}
+}
+
+let _browseSetId = '';
+async function loadSetBrowse(setId) {
+  if (!setId) return;
+  _browseSetId = setId;
+  const grid = document.getElementById('browse-grid');
+  const titleEl = document.getElementById('browse-set-title');
+  grid.innerHTML = `<div style="color:var(--muted);padding:16px;font-size:13px;grid-column:1/-1">⏳ Loading cards…</div>`;
+  titleEl.textContent = 'LOADING…';
+  try {
+    const r = await fetch(`/api/cards/${setId}`);
+    browseCards = await r.json();
+    const setName = browseCards[0]?.setName || setId;
+    titleEl.textContent = setName.toUpperCase();
+    document.getElementById('browse-count').textContent = browseCards.length + ' cards';
+    applyBrowseSort();
+  } catch(e) {
+    grid.innerHTML = `<div style="color:#DC2626;padding:16px;grid-column:1/-1">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function getBestPrice(c) {
+  // Use tcgPrices array if available, else fall back to known keys
+  const prices = c.tcgPrices || [];
+  const order = ['1stEditionHolofoil','holofoil','unlimitedHolofoil','1stEditionNormal','normal','reverseHolofoil'];
+  // For browse cards from /api/cards we get minimal data; need to fetch full
+  return null; // Will show market price chip when available
+}
+
+function applyBrowseSort() {
+  const sort = document.getElementById('browse-sort').value;
+  const sorted = [...browseCards].sort((a, b) => {
+    if (sort === 'number') {
+      const na = parseInt(a.number) || 9999;
+      const nb = parseInt(b.number) || 9999;
+      return na - nb;
+    }
+    if (sort === 'name') return a.name.localeCompare(b.name);
+    // price sorts need price data; sort by number as fallback
+    return (parseInt(a.number)||9999) - (parseInt(b.number)||9999);
+  });
+  renderBrowseGrid(sorted);
+}
+
+function renderBrowseGrid(cards) {
+  const grid = document.getElementById('browse-grid');
+  grid.innerHTML = '';
+  cards.forEach(c => {
+    const div = document.createElement('div');
+    div.style.cssText = 'cursor:pointer;border:2px solid var(--border);border-radius:8px;overflow:hidden;background:white;transition:box-shadow .15s,transform .15s;';
+    div.addEventListener('mouseenter', () => { div.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'; div.style.transform='translateY(-2px)'; });
+    div.addEventListener('mouseleave', () => { div.style.boxShadow=''; div.style.transform=''; });
+    div.innerHTML = `
+      <img src="${esc(c.smallImage||c.image||c.largeImage||'')}" alt="${esc(c.name)}"
+        style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;"
+        onerror="this.style.background='#F0F4F8';this.style.minHeight='100px';" />
+      <div style="padding:6px 8px;">
+        <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.name)}</div>
+        <div style="font-size:10px;color:var(--muted);">#${esc(c.number||'?')} · ${esc(c.rarity||'')}</div>
+      </div>`;
+    div.addEventListener('click', () => {
+      // Switch to search split, select the card
+      switchMode('search');
+      const fullCard = {
+        id: c.id, name: c.name, number: c.number, rarity: c.rarity,
+        setName: c.setName, setId: c.setId,
+        image: c.smallImage||c.image||'', largeImage: c.largeImage||c.smallImage||'',
+        tcgPrices: c.tcgPrices || [],
+      };
+      selectCard(fullCard);
+    });
+    grid.appendChild(div);
+  });
+}
+
+const COND_COLORS = {
+  NM: '#16A34A', LP: '#2563EB', MP: '#D97706', HP: '#EA580C', DMG: '#7C3AED',
+  'PSA-10': '#EAB308', 'PSA-9': '#0EA5E9', 'PSA-8': '#3B82F6', 'PSA-7': '#22C55E',
+  'PSA-6': '#8B5CF6', 'PSA-5': '#EC4899', 'PSA-4': '#F97316', 'PSA-3': '#14B8A6',
+  'PSA-2': '#64748B', 'PSA-1': '#9CA3AF',
+};
+const PSA_COLORS = COND_COLORS;   // alias used by sales-list badges
+const COND_LABELS = {
+  NM: 'Near Mint', LP: 'Lightly Played', MP: 'Moderately Played',
+  HP: 'Heavily Played', DMG: 'Damaged', UNK: 'Unknown Raw',
+};
+COND_COLORS.UNK = '#94A3B8';
+// Default ON so the common case (raw eBay sales with no stated condition) shows
+// on the condition tabs instead of hiding in the Unknown-Raw bucket.
+let includeUnknown = true;
+function toggleIncludeUnknown() {
+  includeUnknown = document.getElementById('incl-unknown').checked;
+  renderCond();
+}
+// Which sale source drives the chart/list: TCGplayer (default, condition-graded),
+// eBay (browse raw sold), or both overlaid.
+let chartSource = 'both';   // show TCG + eBay together by default; toggle isolates
+function setChartSource(src) {
+  chartSource = src;
+  document.querySelectorAll('.src-btn').forEach(b =>
+    b.classList.toggle('src-active', b.dataset.src === src));
+  renderCond();
+}
+
+// ── Search ──────────────────────────────────────────────────────────────────
+let _searchSeq = 0;
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  const foil = document.getElementById('foil-filter').value;
+  const list = document.getElementById('result-list');
+  const seq = ++_searchSeq;            // guards against out-of-order responses
+  list.innerHTML = `<div class="py-4 text-center text-sm" style="color:var(--muted)">⏳ Searching…</div>`;
+  try {
+    const r = await fetch(`/api/market/search?${new URLSearchParams({q, foil_type: foil})}`);
+    const data = await r.json();
+    if (seq !== _searchSeq) return;    // a newer search superseded this one
+    if (!data.cards?.length) {
+      list.innerHTML = `<div class="py-4 text-sm text-center" style="color:var(--muted)">No cards found</div>`;
+      return;
+    }
+    list.innerHTML = '';
+    data.cards.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'card-pill flex items-center gap-2 p-2 rounded-lg';
+      div.style.cssText = 'border:1.5px solid var(--border)';
+      const bestP = c.tcg1stEdHolo || c.tcgHolo || c.tcgNormal || c.tcgReverseHolo;
+      const jpBadge = c.language === 'JP'
+        ? `<span style="font-size:9px;font-weight:700;background:#FEE2E2;color:#B91C1C;padding:1px 5px;border-radius:3px;margin-left:4px;flex-shrink:0">JP</span>` : '';
+      div.innerHTML = `
+        <img src="${esc(c.image)}" style="width:36px;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'" />
+        <div style="min-width:0;flex:1">
+          <div style="font-size:12px;font-weight:600" class="truncate">${esc(c.name)}${jpBadge}</div>
+          <div style="font-size:11px;color:var(--muted)" class="truncate">${esc(c.setName)}${c.number?' · #'+esc(c.number):''}</div>
+          ${bestP ? `<div style="font-size:11px;font-weight:700;color:#16A34A">$${bestP.toFixed(2)}</div>` : ''}
+        </div>`;
+      div.addEventListener('click', () => selectCard(c));
+      // Quick "add to collection" without opening the card
+      const addBtn = document.createElement('button');
+      addBtn.textContent = '+';
+      addBtn.title = 'Add to collection';
+      addBtn.style.cssText = 'flex-shrink:0;width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border);background:#fff;color:var(--red);font-weight:800;font-size:16px;line-height:1;cursor:pointer;';
+      addBtn.addEventListener('mouseover', () => { addBtn.style.background = 'var(--red)'; addBtn.style.color = '#fff'; });
+      addBtn.addEventListener('mouseout', () => { addBtn.style.background = '#fff'; addBtn.style.color = 'var(--red)'; });
+      addBtn.addEventListener('click', (e) => { e.stopPropagation(); openMarketAdd(c, foil); });
+      div.appendChild(addBtn);
+      list.appendChild(div);
+    });
+  } catch(e) {
+    if (seq !== _searchSeq) return;    // don't clobber a newer search with a stale error
+    list.innerHTML = `<div class="py-3 text-sm text-center" style="color:#DC2626">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Select card ──────────────────────────────────────────────────────────────
+async function selectCard(card) {
+  currentCard = card;
+  cardData = null;
+  ebayCondFilter.clear();
+  psaSelected.clear();
+  currentCond = 'NM';
+  pushRecentCard(card);
+  if (history.state?.page !== 'card' || history.state?.cardId !== card.id)
+    history.pushState({ page: 'card', cardId: card.id }, '');
+  document.getElementById('detail-placeholder').classList.add('hidden');
+  document.getElementById('detail-content').classList.remove('hidden');
+  document.getElementById('det-loading').textContent = 'Loading…';
+
+  const _imgEl = document.getElementById('det-img');
+  _imgEl.src = card.largeImage || card.image || '';
+  applyCardTheme(card, _imgEl);
+  document.getElementById('det-name').textContent = card.name;
+  document.getElementById('det-meta').textContent =
+    [card.setName, card.number ? '#' + card.number : '',
+     card.rarity, card.releaseDate?.slice(0,4)].filter(Boolean).join(' · ');
+  document.getElementById('det-price-row').innerHTML = '';
+
+  // Reset chart/sales
+  clearChart();
+  document.getElementById('sales-list').innerHTML = `<div style="color:var(--muted);padding:12px 0;font-size:13px">Loading data…</div>`;
+
+  const reqId = ++_selectReq;          // guards against stale async responses
+  const foil = document.getElementById('foil-filter').value || 'holofoil';
+
+  // 1. Ungraded market data (TCGPlayer + eBay) — fast, render immediately.
+  try {
+    const p = new URLSearchParams({ card_id: card.id, card_name: card.name,
+                                    number: card.number || '', set_name: card.setName || '',
+                                    foil_type: foil,
+                                    tcg_product_id: card.tcgProductId || '' });
+    const mktRes = await fetch(`/api/market/card-data?${p}`);
+    if (reqId !== _selectReq) return;  // a newer card was selected
+    cardData = await mktRes.json();
+    cardData._psaSold = null;
+    cardData.ebaySales = cardData.ebaySales || [];
+    cardData.ebayLoaded = false;
+  } catch(e) {
+    document.getElementById('det-loading').textContent = 'Error loading data';
+    return;
+  }
+
+  document.getElementById('det-loading').textContent = '';
+
+  // Price chips
+  const mkt = cardData.tcgMarket || {};
+  const FOIL_NAMES = { holofoil:'Holo', normal:'Normal', reverseHolofoil:'Rev.Holo',
+    '1stEditionHolofoil':'1st Ed.Holo', unlimitedHolofoil:'Unltd.Holo' };
+  const COLOR_MAP = ['#3B82F6','#10B981','#06B6D4','#F59E0B','#8B5CF6'];
+  document.getElementById('det-price-row').innerHTML = Object.entries(mkt)
+    .map(([k, v], i) =>
+      `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;
+        background:${COLOR_MAP[i%5]}18;color:${COLOR_MAP[i%5]};border:1px solid ${COLOR_MAP[i%5]}40">
+        ${FOIL_NAMES[k]||k}: $${v.toFixed(2)}</span>`
+    ).join('');
+
+  // Pick the card's default printing from those that actually have sales.
+  const avail = cardData.availablePrintings || [];
+  currentPrinting = avail.includes(currentPrinting) ? currentPrinting : (avail[0] || 'holofoil');
+  document.getElementById('foil-filter').value = currentPrinting;
+  renderPrintingToggle();
+
+  renderShopLinks(card);
+  updateCondTabs();
+  updateWatchBtn();
+  renderCond();
+
+  // 2. eBay raw sold comps for the selected printing — slow (opens each item's
+  //    detail page for the official condition). Load in background.
+  loadEbayForPrinting(currentPrinting);
+
+  // 3. PSA auction prices for the selected printing — slow (login on first use).
+  //    Reverse-foil / 1st-ed are SEPARATE PSA specs, so data is per-printing.
+  cardData._psaByPrint = {};
+  loadPsaForPrinting(currentPrinting);
+}
+
+// Fetch PSA auction prices for one printing (cached client-side per printing).
+function loadPsaForPrinting(printing) {
+  if (!currentCard) return;
+  cardData._psaByPrint = cardData._psaByPrint || {};
+  if (cardData._psaByPrint[printing]) {                  // already have it
+    cardData._psaSold = cardData._psaByPrint[printing];
+    if (psaSelected.size) renderCond();
+    return;
+  }
+  const reqId = _selectReq;
+  _psaLoading = true; updatePsaTabsLoading();
+  fetch(`/api/psa/sold?${new URLSearchParams({
+    card_name: currentCard.name, number: currentCard.number || '',
+    set_name: currentCard.setName || '', foil_type: printing,
+  })}`).then(r => r.ok ? r.json() : null).then(psa => {
+    _psaLoading = false; updatePsaTabsLoading();
+    if (reqId !== _selectReq || !cardData) return;
+    cardData._psaByPrint[printing] = psa;
+    if (currentPrinting === printing) {                  // still the active printing
+      cardData._psaSold = psa;
+      if (psaSelected.size) renderCond();
+    }
+  }).catch(() => { _psaLoading = false; updatePsaTabsLoading(); });
+}
+
+let _ebayLoading = false;
+function updateSourceSwitchLoading() {
+  const eb = document.querySelector('.src-btn[data-src="ebay"]');
+  if (eb) { eb.textContent = _ebayLoading ? 'eBay…' : 'eBay'; eb.style.opacity = _ebayLoading ? '0.6' : '1'; }
+}
+
+let _selectReq = 0;
+let _psaLoading = false;
+function updatePsaTabsLoading() {
+  document.querySelectorAll('.cond-tab.psa-tab').forEach(b => {
+    b.style.opacity = _psaLoading ? '0.5' : '1';
+    b.title = _psaLoading ? 'Loading PSA auction prices…' : '';
+  });
+}
+
+// ── Condition / Grade selection ───────────────────────────────────────────────
+// Ungraded tabs are single-select (currentCond). PSA tabs are multi-select
+// (psaSelected) so grades can be overlaid on one chart.
+let psaSelected = new Set();
+
+// ── Printing toggle (holo / reverse / normal / 1st ed / unlimited / etched) ──
+let currentPrinting = 'holofoil';
+const PRINTING_LABEL = {
+  holofoil: 'Holo', reverseHolofoil: 'Reverse', normal: 'Normal',
+  '1stEditionHolofoil': '1st Ed. Holo', unlimitedHolofoil: 'Unltd. Holo',
+  '1stEditionNormal': '1st Ed.', etchedFoil: 'Etched',
+};
+// Sets whose reverse holo is the older "stamped" cosmos/holo pattern.
+const STAMPED_REVERSE_SETS = [
+  'holon phantoms','holon triumphant','holon research','dragon frontiers',
+  'crystal guardians','power keepers','legend maker','delta species',
+  'emerald','unseen forces','sandstorm','aquapolis','expedition','skyridge',
+  'ruby & sapphire','team magma','team rocket returns','firered','leafgreen',
+  'hidden legends','deoxys','team aqua',
+];
+function _printingLabel(p, setName) {
+  if (p === 'reverseHolofoil' && setName &&
+      STAMPED_REVERSE_SETS.some(s => setName.toLowerCase().includes(s)))
+    return 'Reverse (Stamped)';
+  return PRINTING_LABEL[p] || p;
+}
+
+function renderPrintingToggle() {
+  const el = document.getElementById('printing-toggle');
+  const avail = (cardData && cardData.availablePrintings) || [];
+  if (avail.length <= 1) { el.style.display = 'none'; if (avail[0]) currentPrinting = avail[0]; return; }
+  el.style.display = 'flex';
+  const setName = currentCard?.setName || '';
+  el.innerHTML = `<span style="font-size:11px;color:var(--muted);font-family:var(--pixel);margin-right:2px;">PRINTING:</span>`
+    + avail.map(p =>
+      `<button class="print-btn${p === currentPrinting ? ' print-active' : ''}" onclick="setPrinting('${p}')">${esc(_printingLabel(p, setName))}</button>`
+    ).join('');
+}
+
+function setPrinting(p) {
+  currentPrinting = p;
+  document.getElementById('foil-filter').value = p;   // keep state holder in sync
+  document.querySelectorAll('.print-btn').forEach(b =>
+    b.classList.toggle('print-active', b.textContent === _printingLabel(p, currentCard?.setName || '')));
+  loadEbayForPrinting(p);   // eBay is foil-specific → refetch (cached)
+  loadPsaForPrinting(p);    // PSA reverse/1st-ed are separate specs → refetch
+  updateCondTabs();         // refresh per-condition prices for this printing
+  renderCond();
+  renderShopLinks(currentCard);
+}
+
+// Refetch eBay raw comps for the selected printing (background, cached).
+function loadEbayForPrinting(printing) {
+  if (!currentCard) return;
+  const reqId = _selectReq;
+  cardData.ebayLoaded = false; _ebayLoading = true; updateSourceSwitchLoading();
+  fetch(`/api/market/ebay-sold?${new URLSearchParams({
+    card_name: currentCard.name, number: currentCard.number || '',
+    set_name: currentCard.setName || '', foil_type: printing,
+    language: currentCard.language || 'EN',
+  })}`).then(r => r.ok ? r.json() : null).then(eb => {
+    _ebayLoading = false; updateSourceSwitchLoading();
+    if (reqId !== _selectReq || !cardData || !eb) return;
+    cardData.ebaySales = eb.ebaySales || [];
+    cardData.ebayGroups = eb.groups || {};
+    cardData.ebayDebug = eb.debug || {};
+    cardData.ebayLoaded = true;
+    renderCond();
+  }).catch(() => { _ebayLoading = false; updateSourceSwitchLoading(); });
+}
+
+function selectCond(cond) {
+  if (cond.startsWith('PSA-')) {
+    if (psaSelected.has(cond)) psaSelected.delete(cond);
+    else psaSelected.add(cond);
+  } else {
+    currentCond = cond;
+    psaSelected.clear();
+  }
+  updateCondTabs();
+  renderCond();
+}
+
+function updateCondTabs() {
+  // Annotate raw condition tabs with their current market price for the active
+  // printing, so you can compare NM→DMG at a glance (integrated conditions).
+  const cm = (cardData && cardData.condMarket) ? cardData.condMarket[currentPrinting] : null;
+  document.querySelectorAll('.cond-tab').forEach(b => {
+    const c = b.dataset.cond;
+    const active = c.startsWith('PSA-') ? psaSelected.has(c)
+                                        : (psaSelected.size === 0 && c === currentCond);
+    b.classList.toggle('active', active);
+    if (['NM','LP','MP','HP','DMG'].includes(c)) {
+      const p = cm ? cm[c] : null;
+      const tag = p != null
+        ? `<span style="display:block;font-family:var(--sans);font-size:9px;font-weight:700;margin-top:2px;color:${active?'var(--blue)':'#16A34A'}">$${p>=1000?(p/1000).toFixed(1)+'k':p.toFixed(0)}</span>`
+        : '';
+      b.innerHTML = c + tag;
+    }
+  });
+}
+
+function setTf(days) {
+  currentTf = days;
+  document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.tf) === days));
+  renderCond();
+}
+
+// eBay sale → normalized ungraded condition ('' unknown ⇒ NM, the common case).
+function _ebayCond(s) { return s.condition || 'NM'; }
+
+function renderCond() {
+  if (!cardData) return;
+  const usingPsa = psaSelected.size > 0;
+  document.getElementById('ebay-cond-bar').classList.add('hidden');
+
+  // PSA still loading on first lookup.
+  if (usingPsa && !cardData._psaSold && _psaLoading) {
+    clearChart();
+    const e = document.getElementById('chart-empty');
+    e.textContent = 'Loading PSA auction prices…'; e.classList.remove('hidden');
+    ['stat-avg','stat-count','stat-low','stat-high'].forEach(id =>
+      document.getElementById(id).textContent = '…');
+    document.getElementById('sales-panel-title').textContent = 'PSA — LOADING…';
+    document.getElementById('sales-list').innerHTML =
+      `<div style="color:var(--muted);padding:12px 0;font-size:13px">Fetching PSA Auction Prices Realized… (first lookup takes ~30–60s)</div>`;
+    return;
+  }
+
+  const cutoff = currentTf > 0 ? Date.now() - currentTf * 86400000 : 0;
+  const inWindow = s => !cutoff || s.x >= cutoff;
+
+  // Build the per-series sale groups for the chart.
+  const series = [];   // {key, label, color, pts:[{x,y,...}]}
+  let statPts = [];
+
+  if (usingPsa) {
+    [...psaSelected].sort((a,b) => parseInt(b.slice(4)) - parseInt(a.slice(4))).forEach(cond => {
+      const grade = cond.slice(4);
+      const raw = (cardData._psaSold?.sales?.[grade] || []).map(s => ({
+        x: new Date(s.date || s.endTime || '').getTime(), y: s.price,
+        url: s.url || '', auction: s.auction || '', source: s.source || 'psa',
+      })).filter(s => !isNaN(s.x) && inWindow(s));
+      if (raw.length) {
+        series.push({ key: cond, label: `PSA ${grade}`,
+          color: COND_COLORS[cond] || PSA_COLORS[cond] || '#0EA5E9', pts: raw });
+        statPts = statPts.concat(raw);
+      }
+    });
+  } else {
+    const cond = currentCond;
+    const RAW_CONDS = new Set(['NM','LP','MP','HP','DMG']);
+    // When "include unknown-condition" is on (raw tabs only), also pull the
+    // Unknown-Raw eBay sales into this condition's chart.
+    const wantConds = (includeUnknown && RAW_CONDS.has(cond))
+      ? new Set([cond, 'UNK']) : new Set([cond]);
+
+    const tcg = (cardData.tcgSales?.[currentPrinting]?.[cond] || []).map(s => ({
+      x: new Date(s.date || 0).getTime(), y: s.price, qty: s.qty,
+    })).filter(s => s.x > 0 && inWindow(s));
+    const ebay = (cardData.ebaySales || [])
+      .filter(s => wantConds.has(_ebayCond(s)))
+      .map(s => ({ x: new Date(s.endTime || s.date || '').getTime(), y: s.price,
+                   url: s.url || '', title: s.title || '' }))
+      .filter(s => !isNaN(s.x) && inWindow(s));
+
+    // Source switch: conditions are TCGplayer-based by default; eBay can be
+    // browsed on its own. 'both' overlays them.
+    if (chartSource !== 'ebay' && tcg.length)
+      series.push({ key: 'tcg', label: `TCGPlayer ${COND_LABELS[cond] || cond}`,
+        color: COND_COLORS[cond] || '#2563EB', pts: tcg });
+    if (chartSource !== 'tcg' && ebay.length)
+      series.push({ key: 'ebay',
+        label: includeUnknown && RAW_CONDS.has(cond) ? 'eBay Sold (+unknown)' : 'eBay Sold',
+        color: '#F59E0B', pts: ebay });
+
+    statPts = (chartSource === 'tcg') ? tcg
+            : (chartSource === 'ebay') ? ebay : tcg.concat(ebay);
+  }
+
+  // Show the include-unknown toggle only on raw condition tabs.
+  const RAW_TAB = ['NM','LP','MP','HP','DMG'].includes(currentCond);
+  document.getElementById('incl-unknown-wrap').style.display =
+    (!usingPsa && RAW_TAB) ? 'inline-block' : 'none';
+  document.getElementById('incl-unknown').checked = includeUnknown;
+
+  // Stats — TCGplayer analysis by default; eBay official-condition groups when
+  // the eBay source is selected.
+  const prices = statPts.map(p => p.y);
+  const foilNow = document.getElementById('foil-filter').value || 'holofoil';
+  const grpSrc = (chartSource === 'ebay') ? cardData.ebayGroups
+                                          : cardData.priceAnalysis?.groups;
+  let grp = (!usingPsa && grpSrc) ? grpSrc[`${currentCond}|${foilNow}`] : null;
+  // Merge Unknown-Raw into the headline when the user opts in.
+  if (grp && includeUnknown && RAW_TAB && grpSrc) {
+    const unk = grpSrc[`UNK|${foilNow}`];
+    if (unk && unk.prices?.length) {
+      const merged = [...(grp.prices||[]), ...unk.prices].sort((a,b)=>a-b);
+      const mid = Math.floor(merged.length/2);
+      grp = { ...grp,
+        median: merged.length % 2 ? merged[mid] : (merged[mid-1]+merged[mid])/2,
+        sample_size: merged.length, low_confidence: merged.length < 3 };
+    }
+  } else if (!grp && includeUnknown && RAW_TAB && grpSrc) {
+    grp = grpSrc[`UNK|${foilNow}`] || null;
+  }
+
+  const setStat = (id, val) => document.getElementById(id).textContent = val;
+  if (prices.length || grp) {
+    const avg = prices.length ? prices.reduce((s,v)=>s+v,0)/prices.length : null;
+    const median = grp?.median ?? (prices.length ? prices.slice().sort((a,b)=>a-b)[Math.floor(prices.length/2)] : null);
+    setStat('stat-median', median != null ? '$'+median.toFixed(2) : '—');
+    setStat('stat-avg', avg != null ? '$'+avg.toFixed(2) : '—');
+    setStat('stat-count', grp?.sample_size ?? prices.length);
+    setStat('stat-low', prices.length ? '$'+Math.min(...prices).toFixed(2) : '—');
+    setStat('stat-high', prices.length ? '$'+Math.max(...prices).toFixed(2) : '—');
+    const confEl = document.getElementById('stat-conf');
+    if (grp) {
+      confEl.textContent = grp.low_confidence ? 'LOW' : grp.confidence + '%';
+      confEl.style.color = grp.low_confidence ? '#DC2626'
+        : (grp.confidence >= 90 ? '#16A34A' : '#D97706');
+    } else { confEl.textContent = '—'; confEl.style.color = '#1A202C'; }
+  } else {
+    ['stat-median','stat-avg','stat-count','stat-conf','stat-low','stat-high'].forEach(id =>
+      setStat(id, '—'));
+  }
+
+  // CURRENT market price — the exact printing×condition snapshot value the
+  // portfolio values a holding at, so the two always agree to the cent.
+  const curWrap = document.getElementById('stat-current-wrap');
+  const _cm = (!usingPsa && cardData.condMarket) ? cardData.condMarket[foilNow] : null;
+  const curPrice = _cm ? _cm[currentCond] : null;
+  window._marketCurrent = curPrice;   // graph draws a reference line at this level
+  setStat('stat-current', curPrice != null ? '$'+curPrice.toFixed(2) : '—');
+  const _cLbl = {NM:'Near Mint',LP:'Lightly Pl.',MP:'Mod. Played',HP:'Heavily Pl.',DMG:'Damaged'}[currentCond] || currentCond;
+  const _pLbl = {holofoil:'Holo',normal:'Normal',reverseHolofoil:'Rev. Holo','1stEditionHolofoil':'1st Ed.',unlimitedHolofoil:'Unltd.'}[foilNow] || foilNow;
+  document.getElementById('stat-current-note').textContent =
+    curPrice != null ? `${_cLbl} · ${_pLbl}` : (usingPsa ? '' : 'no TCG market');
+  curWrap.style.display = usingPsa ? 'none' : '';
+
+  // Volume + PSA-10 gem-rate info row
+  const volEl = document.getElementById('vol-info');
+  const gemWrap = document.getElementById('stat-gem-wrap');
+  if (usingPsa) {
+    const summ = cardData._psaSold?.summary || {};
+    const totVol = cardData._psaSold?.totalVolume || 0;
+    const gradeVol = [...psaSelected].map(c => {
+      const g = c.slice(4);
+      return `${g}: ${summ[g]?.quantity ?? 0}`;
+    }).join('  ·  ');
+    volEl.textContent = `Sales volume — ${gradeVol}   (all grades: ${totVol})`;
+    const gem = cardData._psaSold?.gemRate;
+    if (gem != null) { gemWrap.style.display = ''; document.getElementById('stat-gem').textContent = gem + '%'; }
+    else gemWrap.style.display = 'none';
+  } else {
+    if (chartSource === 'ebay') {
+      if (!cardData.ebayLoaded && _ebayLoading) {
+        volEl.textContent = 'Reading eBay sold listings & official conditions… (~30s)';
+      } else {
+        const dbg = cardData.ebayDebug || {};
+        volEl.textContent = `eBay raw: ${(cardData.ebaySales||[]).length} verified`
+          + (dbg.detailsFetched != null ? ` · ${dbg.detailsFetched} item details read` : '')
+          + (dbg.rejectedGraded != null ? ` · ${dbg.rejectedGraded} graded / ${(dbg.rejectedLotSealed||0)} lots rejected` : '');
+      }
+    } else {
+      const pa = cardData.priceAnalysis;
+      const sb = (pa && pa.source_breakdown) || {};
+      const ebayN = (cardData.ebaySales||[]).length;
+      volEl.textContent = pa
+        ? `TCGplayer: ${pa.matched_count} validated · eBay raw: ${ebayN}`
+          + (cardData.ebayLoaded ? '' : (_ebayLoading ? ' (loading…)' : ''))
+        : `eBay sold: ${ebayN}`;
+    }
+    gemWrap.style.display = 'none';
+  }
+
+  buildChartSeries(series);
+  if (usingPsa) renderPsaSalesList([...psaSelected].map(c => c.slice(4)));
+  else renderSalesList(false, null, currentCond, cardData.tcgProductId);
+  if (currentCard) renderShopLinks(currentCard);
+}
+
+// ── Chart ─────────────────────────────────────────────────────────────────────
+function clearChart() {
+  if (activeChart) { activeChart.destroy(); activeChart = null; }
+}
+
+// Collapse raw sales into one averaged point per day for a clean trend line.
+function dailyAvg(points) {
+  const byDay = {};
+  points.forEach(p => {
+    const k = Math.floor(p.x / 86400000);
+    (byDay[k] = byDay[k] || []).push(p.y);
+  });
+  return Object.entries(byDay)
+    .map(([k, arr]) => ({ x: +k * 86400000 + 43200000,
+                          y: arr.reduce((s, v) => s + v, 0) / arr.length,
+                          n: arr.length }))
+    .sort((a, b) => a.x - b.x);
+}
+
+// Professional per-source palette
+const SOURCE_STYLE = {
+  tcg:  { label: 'TCGPlayer', stroke: '#2563EB' },
+  ebay: { label: 'eBay',      stroke: '#F59E0B' },
+  psa:  { label: 'PSA',       stroke: '#0EA5E9' },
+};
+
+function _gradient(c, hex) {
+  const area = c.chart.chartArea;
+  if (!area) return hex + '12';
+  const g = c.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+  g.addColorStop(0, hex + '30');
+  g.addColorStop(1, hex + '02');
+  return g;
+}
+
+// Linear regression over daily points → two endpoints for a straight best-fit
+// line. x is scaled to days so the slope stays numerically stable.
+function _linregLine(pts) {
+  const p = (pts || []).filter(d => d && isFinite(d.x) && isFinite(d.y));
+  if (p.length < 3) return null;
+  const x0 = Math.min(...p.map(d => d.x));
+  const X = p.map(d => (d.x - x0) / 86400000), Y = p.map(d => d.y);
+  const n = p.length;
+  let sx=0, sy=0, sxy=0, sxx=0;
+  for (let i=0;i<n;i++){ sx+=X[i]; sy+=Y[i]; sxy+=X[i]*Y[i]; sxx+=X[i]*X[i]; }
+  const denom = n*sxx - sx*sx;
+  if (Math.abs(denom) < 1e-9) return null;
+  const m = (n*sxy - sx*sy) / denom, b = (sy - m*sx) / n;
+  const xmn = Math.min(...X), xmx = Math.max(...X);
+  return [{ x: x0 + xmn*86400000, y: m*xmn + b },
+          { x: x0 + xmx*86400000, y: m*xmx + b }];
+}
+
+// Render each series as crisp day-by-day segments plus a dashed best-fit trend.
+function buildChartSeries(series) {
+  clearChart();
+  const ctx = document.getElementById('market-chart').getContext('2d');
+  const empty = document.getElementById('chart-empty');
+
+  const allPts = series.flatMap(s => s.pts);
+  if (!allPts.length) {
+    empty.textContent = 'No sales data for this condition / time range';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  const fill = series.length === 1;   // only fill when a single line
+  const datasets = [];
+  series.forEach(s => {
+    const pts = dailyAvg(s.pts).slice(-60);
+    datasets.push({
+      label: s.label,
+      data: pts,
+      borderColor: s.color,
+      backgroundColor: fill ? (c => _gradient(c, s.color)) : 'transparent',
+      borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5,
+      pointBackgroundColor: s.color, pointBorderColor: '#fff', pointBorderWidth: 1,
+      fill: fill ? 'origin' : false, tension: 0, spanGaps: true,   // straight day-by-day
+    });
+    // Dashed linear best-fit so the overall trend reads clearly (not swoopy).
+    const fit = _linregLine(pts);
+    if (fit) datasets.push({
+      label: s.label + ' trend', data: fit, borderColor: s.color,
+      borderWidth: 1.5, borderDash: [7, 5], pointRadius: 0, pointHoverRadius: 0,
+      fill: false, tension: 0,
+    });
+  });
+
+  // Horizontal "current market" line — the same value the portfolio uses, so
+  // the graph visibly anchors to a holding's valuation.
+  const cur = window._marketCurrent;
+  const xValsC = allPts.map(p => p.x);
+  if (cur != null && isFinite(cur) && chartSource !== 'ebay') {
+    datasets.push({
+      label: 'Current market $' + Number(cur).toFixed(2),
+      data: [{ x: Math.min(...xValsC), y: cur }, { x: Math.max(...xValsC), y: cur }],
+      borderColor: '#1D4ED8', borderWidth: 1.5, borderDash: [3, 4],
+      pointRadius: 0, pointHoverRadius: 0, fill: false, tension: 0,
+    });
+  }
+
+  const xVals = allPts.map(p => p.x);
+  const rangeMs = currentTf > 0 ? currentTf * 86400000
+                : (Math.max(...xVals) - Math.min(...xVals)) || 365 * 86400000;
+  const xAxisMin = currentTf > 0 ? Date.now() - currentTf * 86400000 : undefined;
+
+  const tickFmt = v => {
+    const d = new Date(v);
+    if (rangeMs <= 8 * 86400000)
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    if (rangeMs <= 95 * 86400000)
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (rangeMs <= 400 * 86400000)
+      return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  activeChart = new Chart(ctx, {
+    type: 'line', data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 350 },
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        x: { type: 'linear', min: xAxisMin, grid: { color: '#EEF2F6' }, border: { color: '#E2E8F0' },
+          ticks: { color: '#94A3B8', maxTicksLimit: 7, callback: tickFmt, font: { size: 11 } } },
+        y: { grid: { color: '#EEF2F6' }, border: { color: '#E2E8F0' },
+          ticks: { color: '#94A3B8', font: { size: 11 },
+            callback: v => `$${v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0)}` } },
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#475569', boxWidth: 22, boxHeight: 2,
+          usePointStyle: false, padding: 14, font: { size: 11 },
+          filter: item => !/ trend$/.test(item.text) } },
+        tooltip: { backgroundColor: '#fff', borderColor: '#E2E8F0', borderWidth: 1,
+          titleColor: '#0F172A', bodyColor: '#475569', padding: 10,
+          callbacks: {
+            title: items => new Date(items[0].parsed.x).toLocaleDateString('en-US',
+              { month: 'long', day: 'numeric', year: 'numeric' }),
+            label: c => {
+              const n = c.raw?.n;
+              return `${c.dataset.label}: $${c.parsed.y.toFixed(2)}`
+                   + (n > 1 ? `  (avg of ${n})` : '');
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+// ── Sales List ────────────────────────────────────────────────────────────────
+function condBadge(label, bg, color) {
+  if (!label) return '';
+  return `<span style="background:${bg};color:${color};padding:1px 6px;border-radius:3px;font-size:10px;flex-shrink:0;white-space:nowrap">${esc(label)}</span>`;
+}
+
+// PSA multi-grade sales list (one combined, date-sorted list with grade badges).
+function renderPsaSalesList(grades) {
+  const el      = document.getElementById('sales-list');
+  const titleEl = document.getElementById('sales-panel-title');
+  titleEl.textContent = `PSA ${grades.slice().sort((a,b)=>b-a).join(', ')} — AUCTION PRICES REALIZED`;
+
+  let rows = [];
+  grades.forEach(g => (cardData._psaSold?.sales?.[g] || []).forEach(s =>
+    rows.push({ ...s, _g: g })));
+  rows.sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  rows = rows.slice(0, 80);
+
+  if (!rows.length) {
+    el.innerHTML = `<div style="color:var(--muted);padding:12px 0;font-size:13px">No PSA sales found for the selected grade(s)</div>`;
+    return;
+  }
+  el.innerHTML = rows.map(s => {
+    const date = (s.date || s.endTime || '').slice(0, 10);
+    const house = s.auction || (s.source === 'ebay' ? 'eBay' : 'PSA');
+    const isEbay = /ebay/i.test(house);
+    const gColor = COND_COLORS['PSA-' + s._g] || PSA_COLORS['PSA-' + s._g] || '#0EA5E9';
+    const gradeBadge = condBadge('PSA ' + s._g, gColor + '22', gColor);
+    const houseBadge = condBadge(house, isEbay ? '#FFF7ED' : '#FEF9C3', isEbay ? '#EA580C' : '#713F12');
+    // Link straight to the ACTUAL recorded sold listing (PSA's listingURL for
+    // this exact sale).  Only when no URL was recorded do we fall back to a
+    // SOLD search for the card + grade.
+    let url = '', label = `${date} · sold`, title = '';
+    if (s.url) {
+      url = s.url;
+      label = `${date} · sold $${s.price.toFixed(0)} →`;
+      title = isEbay
+        ? `Open the sold eBay listing${s.itemId ? ' (item #' + s.itemId + ')' : ''} — $${s.price.toFixed(2)}, ${date}`
+        : `${house} sold result`;
+    } else if (isEbay) {
+      const num = String(currentCard?.number || '').split('/')[0].replace(/^0+/, '');
+      const q = `${currentCard?.name || ''} ${num} PSA ${s._g}`.replace(/\s+/g, ' ').trim();
+      url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_sacat=2536&LH_Sold=1&LH_Complete=1&rt=nc`;
+      label = `${date} · sold →`;
+      title = `No direct link recorded — eBay SOLD results for ${q}`;
+    }
+    const main = url
+      ? `<a href="${esc(url)}" target="_blank" class="truncate flex-1" style="color:var(--blue)" title="${esc(title)}">${esc(label)}</a>`
+      : `<span style="color:var(--muted);flex:1">${esc(label)}</span>`;
+    // Secondary = cert-verified PSA card page (guaranteed correct card/grade).
+    const certLink = s.cert
+      ? `<a href="${esc(s.certUrl)}" target="_blank" title="Verify PSA cert #${esc(s.cert)}" style="font-size:11px;color:var(--green,#16A34A);flex-shrink:0;font-weight:600">✓cert</a>`
+      : '';
+    return `<div class="sale-row">${gradeBadge}${main}${certLink}${houseBadge}
+      <span style="font-weight:700;margin-left:auto">$${s.price.toFixed(2)}</span></div>`;
+  }).join('');
+}
+
+function renderSalesList(isPsa, grade, cond, tcgProductId) {
+  const el      = document.getElementById('sales-list');
+  const titleEl = document.getElementById('sales-panel-title');
+
+  titleEl.textContent = `${COND_LABELS[cond] || cond} — RECENT SALES`;
+  const tcgUrl = tcgProductId ? `https://www.tcgplayer.com/product/${tcgProductId}` : null;
+
+  // TCGPlayer sales for this exact condition.
+  const tcgRows = (cardData.tcgSales?.[currentPrinting]?.[cond] || []).map(s =>
+    `<div class="sale-row">
+      ${tcgUrl
+        ? `<a href="${tcgUrl}" target="_blank" style="color:var(--blue);width:90px;flex-shrink:0">${s.date} →</a>`
+        : `<span style="color:var(--muted);width:90px;flex-shrink:0">${s.date}</span>`}
+      ${condBadge('TCGPlayer', '#EBF4FF', '#1D4ED8')}
+      <span style="color:var(--muted);font-size:10px;flex-shrink:0">×${s.qty}</span>
+      <span style="font-weight:700;margin-left:auto">$${s.price.toFixed(2)}</span>
+    </div>`
+  );
+
+  // eBay sales matching this condition. On a raw tab with "include unknown"
+  // enabled, Unknown-Raw sales are shown too.
+  const RAW_CONDS = new Set(['NM','LP','MP','HP','DMG']);
+  const wantConds = (includeUnknown && RAW_CONDS.has(cond))
+    ? new Set([cond, 'UNK']) : new Set([cond]);
+  const ebayRows = (cardData.ebaySales || [])
+    .filter(s => wantConds.has(s.condition || 'UNK'))
+    .map(s => {
+      const date = (s.endTime || s.date || '').slice(0, 10);
+      const condTxt = s.condition === 'UNK' ? 'Unknown Raw'
+        : (s.ebayCondition || s.condition || 'Ungraded');
+      // Only link directly to the item when the scraper verified the page still
+      // shows THIS sold price; otherwise eBay has relisted/expired it, so fall
+      // back to a SOLD search for the card so the link always lands on sold data.
+      const num = String(currentCard?.number || '').split('/')[0].replace(/^0+/, '');
+      const soldSearch = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(((currentCard?.name||'') + ' ' + num).trim())}&_sacat=2536&LH_Sold=1&LH_Complete=1&rt=nc`;
+      const href = s.urlVerified ? s.url : soldSearch;
+      const tip  = s.urlVerified ? s.title
+        : `eBay relisted/ended this item — opening SOLD results for ${(currentCard?.name||'')} ${num} (~$${s.price.toFixed(2)}, ${date})`;
+      const mark = s.urlVerified ? '' : ' 🔎';
+      return `<div class="sale-row">
+        <a href="${esc(href)}" target="_blank" class="truncate flex-1" title="${esc(tip)}">${esc((s.title || '').slice(0, 44))}…${mark}</a>
+        ${condBadge(condTxt, '#F1F5F9', '#64748B')}
+        ${condBadge('eBay', '#FFF7ED', '#EA580C')}
+        <div style="text-align:right;flex-shrink:0;margin-left:4px">
+          <div style="font-weight:700">$${s.price.toFixed(2)}</div>
+          <div style="color:var(--muted);font-size:10px">${date}</div>
+        </div>
+      </div>`;
+    });
+
+  const allRows = [...tcgRows, ...ebayRows];
+  el.innerHTML = allRows.length
+    ? allRows.join('')
+    : `<div style="color:var(--muted);padding:12px 0;font-size:13px">No ${COND_LABELS[cond] || cond} sales found</div>`;
+}
+
+document.getElementById('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { clearTimeout(_liveTimer); doSearch(); }
+});
+// Live suggestions: search as you type (debounced), so results appear before
+// hitting the button. The sequence guard in doSearch drops out-of-order replies.
+let _liveTimer = null;
+document.getElementById('search-input').addEventListener('input', e => {
+  clearTimeout(_liveTimer);
+  const q = e.target.value.trim();
+  if (q.length < 3) {                       // wait for a meaningful stem
+    if (!q) document.getElementById('result-list').innerHTML = '';
+    return;
+  }
+  _liveTimer = setTimeout(doSearch, 280);
+});
+
+// ── Custom select dropdowns ───────────────────────────────────────────────────
+function makeCustomSelect(sel) {
+  if (sel._csDone) return;
+  sel._csDone = true;
+  sel.style.display = 'none';
+
+  const wrap = document.createElement('div');
+  const isFull = sel.classList.contains('flex-1') || sel.style.width === '100%' || getComputedStyle(sel).width === '100%';
+  wrap.className = 'cs-wrap' + (isFull ? ' cs-full' : '');
+  if (sel.style.width && sel.style.width !== '100%') wrap.style.width = sel.style.width;
+
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'cs-btn';
+  const valSpan = document.createElement('span'); valSpan.className = 'cs-val';
+  const arrow = document.createElement('span'); arrow.className = 'cs-arrow'; arrow.textContent = '▾';
+  btn.append(valSpan, arrow);
+
+  const list = document.createElement('div'); list.className = 'cs-list';
+
+  function rebuild() {
+    list.innerHTML = '';
+    const opts = [...sel.options];
+    opts.forEach(opt => {
+      const item = document.createElement('div');
+      item.className = 'cs-item' + (opt.selected ? ' cs-sel' : '');
+      item.textContent = opt.textContent;
+      item.dataset.val = opt.value;
+      item.onclick = () => {
+        sel.value = opt.value;
+        list.querySelectorAll('.cs-sel').forEach(e => e.classList.remove('cs-sel'));
+        item.classList.add('cs-sel');
+        valSpan.textContent = opt.textContent;
+        wrap.classList.remove('cs-open');
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      list.appendChild(item);
+    });
+    const cur = opts.find(o => o.selected) || opts[0];
+    if (cur) valSpan.textContent = cur.textContent;
+  }
+  rebuild();
+  sel._csRebuild = rebuild;
+
+  function positionList() {
+    const r = btn.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom;
+    list.style.left = r.left + 'px';
+    list.style.width = r.width + 'px';
+    const maxH = Math.min(280, Math.max(below, r.top) - 12);
+    list.style.maxHeight = maxH + 'px';
+    if (below < 240 && r.top > below) {     // open upward when little room below
+      list.style.top = 'auto';
+      list.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+    } else {
+      list.style.bottom = 'auto';
+      list.style.top = (r.bottom + 4) + 'px';
+    }
+  }
+  function close() { wrap.classList.remove('cs-open'); }
+
+  btn.onclick = e => {
+    e.stopPropagation();
+    const isOpen = wrap.classList.contains('cs-open');
+    document.querySelectorAll('.cs-wrap.cs-open').forEach(w => w.classList.remove('cs-open'));
+    if (!isOpen) { positionList(); wrap.classList.add('cs-open'); }
+  };
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  window.addEventListener('scroll', () => { if (wrap.classList.contains('cs-open')) positionList(); }, true);
+  window.addEventListener('resize', () => { if (wrap.classList.contains('cs-open')) positionList(); });
+
+  wrap.append(btn, list);
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+}
+
+function initCustomSelects() {
+  // Skip hidden selects (e.g. #foil-filter, kept only as a JS state holder —
+  // printing is chosen via the per-card toggle buttons, not a dropdown).
+  document.querySelectorAll('select').forEach(s => {
+    if (s.id === 'foil-filter' || s.style.display === 'none') return;
+    makeCustomSelect(s);
+  });
+}
+
+// ── Recently viewed + Watchlist (localStorage) ────────────────────────────────
+function _lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } }
+function _lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+function _cardMini(c) {
+  return { id: c.id, name: c.name, number: c.number || '', setName: c.setName || '',
+           image: c.image || '', rarity: c.rarity || '', releaseDate: c.releaseDate || '' };
+}
+
+function pushRecentCard(card) {
+  let recent = _lsGet('recentCards').filter(c => c.id !== card.id);
+  recent.unshift(_cardMini(card));
+  _lsSet('recentCards', recent.slice(0, 12));
+}
+
+function isWatched(id) { return _lsGet('watchlist').some(c => c.id === id); }
+function toggleWatch() {
+  if (!currentCard) return;
+  let wl = _lsGet('watchlist');
+  if (wl.some(c => c.id === currentCard.id)) wl = wl.filter(c => c.id !== currentCard.id);
+  else wl.unshift(_cardMini(currentCard));
+  _lsSet('watchlist', wl.slice(0, 60));
+  updateWatchBtn();
+}
+function updateWatchBtn() {
+  const btn = document.getElementById('watch-btn');
+  if (!btn || !currentCard) return;
+  const on = isWatched(currentCard.id);
+  btn.style.color = on ? '#EAB308' : '#CBD5E1';
+  btn.title = on ? 'Remove from watchlist' : 'Add to watchlist';
+}
+
+// Shop links — buy the card on eBay / TCGplayer / PSA.
+function renderShopLinks(card) {
+  const el = document.getElementById('det-shop-row');
+  if (!el) return;
+  const foil = document.getElementById('foil-filter').value || '';
+  const cond = (currentCond && !currentCond.startsWith('PSA-')) ? currentCond : '';
+  const psaGrade = [...psaSelected][0]; // if a PSA tab is active
+  // eBay ACTIVE listings (BuyItNow), graded or raw depending on the active tab
+  const ebayTerms = [card.name, card.number, card.setName,
+    psaGrade ? psaGrade.replace('-', ' ') : ''].filter(Boolean).join(' ');
+  const ebayUrl = 'https://www.ebay.com/sch/i.html?_nkw=' + encodeURIComponent(ebayTerms)
+    + '&_sacat=2536&LH_BIN=1&_sop=15';
+  const tcgUrl = cardData?.tcgProductId
+    ? `https://www.tcgplayer.com/product/${cardData.tcgProductId}`
+    : 'https://www.tcgplayer.com/search/pokemon/product?q=' + encodeURIComponent(card.name + ' ' + (card.setName||''));
+  const psaUrl = 'https://www.psacard.com/auctionprices/search?q=' + encodeURIComponent(card.name + ' ' + (card.setName||''));
+  // Recognizable brand wordmarks recreated in CSS (no external assets).
+  const ebayMark =
+    `<span style="font-family:Inter,Arial;font-weight:800;font-size:16px;letter-spacing:-.5px;">`
+    + `<span style="color:#E53238">e</span><span style="color:#0064D2">b</span>`
+    + `<span style="color:#F5AF02">a</span><span style="color:#86B817">y</span></span>`;
+  const psaMark =
+    `<span style="display:inline-flex;align-items:center;gap:0;">`
+    + `<span style="background:#C8102E;color:#fff;font-weight:800;font-size:13px;padding:1px 5px;border-radius:3px 0 0 3px;">PSA</span>`
+    + `<span style="background:#0A2C5E;color:#fff;font-weight:700;font-size:11px;padding:2px 6px;border-radius:0 3px 3px 0;">Prices</span></span>`;
+  const tcgMark =
+    `<span style="font-family:Inter,Arial;font-weight:800;font-size:14px;color:#F37A1F;">TCG<span style="color:#1F3A93">player</span></span>`;
+  const shopBtn = (href, inner, title) =>
+    `<a href="${href}" target="_blank" rel="noopener" title="${title}"
+        style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border);
+        border-radius:9px;padding:7px 14px;text-decoration:none;transition:box-shadow .12s,transform .12s;"
+        onmouseover="this.style.boxShadow='0 3px 10px rgba(0,0,0,.12)';this.style.transform='translateY(-1px)'"
+        onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+        ${inner}<span style="font-size:12px;color:var(--muted);font-weight:600;">Buy →</span></a>`;
+  el.innerHTML =
+    shopBtn(ebayUrl, ebayMark, 'Buy on eBay') +
+    shopBtn(tcgUrl, tcgMark, 'Buy on TCGplayer') +
+    `<a href="${psaUrl}" target="_blank" rel="noopener" title="PSA auction prices"
+        style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border);
+        border-radius:9px;padding:7px 14px;text-decoration:none;transition:box-shadow .12s,transform .12s;"
+        onmouseover="this.style.boxShadow='0 3px 10px rgba(0,0,0,.12)';this.style.transform='translateY(-1px)'"
+        onmouseout="this.style.boxShadow='none';this.style.transform='none'">${psaMark}</a>`;
+}
+
+function _cardChip(c) {
+  const div = document.createElement('div');
+  div.style.cssText = 'cursor:pointer;border:1.5px solid var(--border);border-radius:8px;padding:6px;width:96px;text-align:center;background:white;transition:border-color .12s;';
+  div.onmouseover = () => div.style.borderColor = 'var(--blue)';
+  div.onmouseout = () => div.style.borderColor = 'var(--border)';
+  div.innerHTML = `<img src="${esc(c.image)}" style="width:100%;border-radius:4px;" />
+    <div style="font-size:10px;font-weight:700;margin-top:4px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dark)">${esc(c.name)}</div>
+    <div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.setName)}</div>`;
+  div.onclick = () => selectCard(c);
+  return div;
+}
+
+function renderHomePanels() {
+  const recent = _lsGet('recentCards'), wl = _lsGet('watchlist');
+  const rSec = document.getElementById('recent-section'), rGrid = document.getElementById('recent-grid');
+  const wSec = document.getElementById('watchlist-section'), wGrid = document.getElementById('watchlist-grid');
+  rGrid.innerHTML = ''; wGrid.innerHTML = '';
+  if (recent.length) { rSec.style.display = ''; recent.forEach(c => rGrid.appendChild(_cardChip(c))); }
+  else rSec.style.display = 'none';
+  if (wl.length) { wSec.style.display = ''; wl.forEach(c => wGrid.appendChild(_cardChip(c))); }
+  else wSec.style.display = 'none';
+}
+
+// ── Back button: track card view state ───────────────────────────────────────
+function clearCardView() {
+  currentCard = null; cardData = null;
+  clearChart();
+  document.getElementById('detail-placeholder').classList.remove('hidden');
+  document.getElementById('detail-content').classList.add('hidden');
+  document.getElementById('ebay-cond-bar').classList.add('hidden');
+  renderHomePanels();
+}
+
+window.addEventListener('popstate', e => {
+  if (!e.state || e.state.page !== 'card') clearCardView();
+});
+
+// Init on page load
+window.addEventListener('DOMContentLoaded', async () => {
+  history.replaceState({ page: 'market' }, '');
+  await initSetSelect(); // populates set-select-browse and calls _csRebuild internally
+  initCustomSelects();
+  renderHomePanels();
+  const params = new URLSearchParams(location.search);
+  // Deep-link: /market?card=<id> opens a card directly (collection click-through)
+  const cid = params.get('card');
+  if (cid) { openCardById(cid); return; }
+  // Deep-link: /market?browseSet=<setId> opens the set browser (collection set click)
+  const setId = params.get('browseSet');
+  if (setId) {
+    switchMode('browse');
+    const sel = document.getElementById('set-select-browse');
+    if (sel) { sel.value = setId; if (sel._csRebuild) sel._csRebuild(); }
+    loadSetBrowse(setId);
+  }
+});
+
+// Open a card by pokemontcg.io id (used by collection click-through + deep links)
+async function openCardById(cardId) {
+  try {
+    const r = await fetch(`/api/card/${encodeURIComponent(cardId)}`);
+    if (r.ok) { const c = await r.json(); if (c && c.id) selectCard(c); }
+  } catch {}
+}
+</script>
+</body>
+</html>

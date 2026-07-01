@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Movers | PokePop Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root{--blue:#1B4F9E;--yellow:#FFD700;--dark:#1A1A2E;--bg:#EDF2F7;--border:#CBD5E0;
+      --text:#1A202C;--muted:#718096;--pixel:'Press Start 2P',monospace;--green:#16A34A;--rose:#DC2626;}
+    *{box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    .panel{background:white;border:1.5px solid var(--border);border-radius:12px;}
+    .mover-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border);cursor:pointer;transition:background .12s;}
+    .mover-row:hover{background:#F7FAFC;}
+  </style>
+</head>
+<body>
+  {% include 'nav.html' %}
+
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <div class="mb-4">
+      <h1 style="font-family:var(--pixel);font-size:14px;">MARKET MOVERS</h1>
+      <p class="text-sm mt-2" style="color:var(--muted)">
+        Biggest 24-hour price moves across your tracked cards (raw market value, eBay + TCGplayer).
+        <span id="movers-scope"></span>
+      </p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="panel overflow-hidden">
+        <div style="background:linear-gradient(135deg,#065F46,#16A34A);padding:10px 16px;">
+          <span style="font-family:var(--pixel);font-size:8px;color:#fff">▲ TOP GAINERS</span>
+        </div>
+        <div id="gainers"><div class="px-3 py-8 text-center text-sm" style="color:var(--muted)">Loading…</div></div>
+      </div>
+      <div class="panel overflow-hidden">
+        <div style="background:linear-gradient(135deg,#7F1D1D,#DC2626);padding:10px 16px;">
+          <span style="font-family:var(--pixel);font-size:8px;color:#fff">▼ TOP LOSERS</span>
+        </div>
+        <div id="losers"><div class="px-3 py-8 text-center text-sm" style="color:var(--muted)">Loading…</div></div>
+      </div>
+    </div>
+
+    <div class="panel p-4 mt-4 text-xs" style="color:var(--muted)">
+      <strong>How this works:</strong> movers compare each tracked card's two most recent daily
+      price snapshots. Snapshots are written hourly for cards in your collection, so a card needs
+      at least two days of history to appear. Add cards to your collection (or watchlist) to widen
+      the universe.
+    </div>
+  </div>
+
+<script>
+const esc = s => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+const money = v => v == null ? '—' : '$' + Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function row(m, up) {
+  const c = up ? 'var(--green)' : 'var(--rose)';
+  const sign = m.changePct >= 0 ? '+' : '';
+  const link = m.card_id ? `/market?card=${encodeURIComponent(m.card_id)}` : '#';
+  return `<div class="mover-row" onclick="location.href='${link}'">
+    ${m.image_url?`<img src="${esc(m.image_url)}" style="width:34px;border-radius:4px;flex-shrink:0">`:''}
+    <div class="flex-1 min-w-0">
+      <div class="font-semibold text-sm truncate">${esc(m.name)}</div>
+      <div class="text-xs" style="color:var(--muted)">${esc(m.set_name||'')}${m.number?' · #'+esc(m.number):''} · ${esc(m.condition||'')}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div class="font-bold text-sm">${money(m.current)}</div>
+      <div class="text-xs font-semibold" style="color:${c}">${sign}${m.changePct}% (${sign}${money(m.change)})</div>
+    </div>
+  </div>`;
+}
+
+async function loadMovers() {
+  let d;
+  try { d = await (await fetch('/api/movers')).json(); } catch { return; }
+  document.getElementById('movers-scope').textContent = `Tracking ${d.trackedCount} card(s).`;
+  const g = document.getElementById('gainers'), l = document.getElementById('losers');
+  g.innerHTML = d.gainers.length ? d.gainers.map(m=>row(m,true)).join('')
+    : `<div class="px-3 py-8 text-center text-sm" style="color:var(--muted)">No gainers yet — needs ≥2 days of snapshots.</div>`;
+  l.innerHTML = d.losers.length ? d.losers.map(m=>row(m,false)).join('')
+    : `<div class="px-3 py-8 text-center text-sm" style="color:var(--muted)">No losers yet — needs ≥2 days of snapshots.</div>`;
+}
+loadMovers();
+</script>
+</body>
+</html>

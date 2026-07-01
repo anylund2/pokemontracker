@@ -1,0 +1,58 @@
+<!-- Shared top navigation (Schwab/Collectr-style tabs) -->
+<header class="topnav" style="position:relative;overflow:hidden;">
+  <div style="position:absolute;right:18px;top:50%;transform:translateY(-50%);pointer-events:none;">
+    <img style="image-rendering:pixelated;width:48px;animation:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))"
+      src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/132.gif"
+      onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/132.png'" alt="" />
+  </div>
+  <div class="max-w-6xl mx-auto px-4 flex items-center gap-1" style="height:54px;position:relative;z-index:1;padding-right:70px;">
+    <a href="/portfolio" style="font-family:var(--pixel,'Press Start 2P');font-size:11px;color:var(--yellow,#FFD700);text-decoration:none;margin-right:14px;white-space:nowrap;">POKE&nbsp;POP</a>
+    <nav class="flex items-center overflow-x-auto" style="gap:2px;">
+      <a href="/portfolio"  class="nav-tab" data-path="/portfolio">PORTFOLIO</a>
+      <a href="/movers"     class="nav-tab" data-path="/movers">MOVERS</a>
+      <a href="/market"     class="nav-tab" data-path="/market">MARKET</a>
+      <a href="/sealed"     class="nav-tab" data-path="/sealed">SEALED</a>
+      <a href="/collection" class="nav-tab" data-path="/collection">COLLECTION</a>
+      <a href="/"           class="nav-tab" data-path="/">POP&nbsp;REPORT</a>
+    </nav>
+    <div id="user-menu" style="margin-left:auto;display:none;align-items:center;gap:10px;padding-right:62px;">
+      <span id="user-name" style="color:#EAF2FF;font-size:12px;font-weight:600;white-space:nowrap;"></span>
+      <button onclick="pokeLogout()" title="Log out"
+        style="font-family:var(--pixel,'Press Start 2P');font-size:7px;color:#1A1A2E;background:var(--yellow,#FFD700);border:none;padding:7px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">LOG&nbsp;OUT</button>
+    </div>
+  </div>
+</header>
+<style>
+  .topnav{background:linear-gradient(135deg,#1D4ED8 0%,#2563EB 55%,#3B82F6 100%);border-bottom:3px solid var(--yellow,#FFD700);}
+  .nav-tab{font-family:var(--pixel,'Press Start 2P');font-size:8px;color:#BFDBFE;padding:18px 12px;border-bottom:3px solid transparent;cursor:pointer;text-decoration:none;white-space:nowrap;transition:color .12s;}
+  .nav-tab:hover{color:#fff;}
+  .nav-tab.active{color:var(--yellow,#FFD700);border-bottom-color:var(--yellow,#FFD700);}
+  /* Site-wide type scale (compact but readable) */
+  body{font-size:14px;}
+  .text-xs{font-size:12px !important;}
+  .text-sm{font-size:13px !important;}
+  table{font-size:13px;}
+  /* Wider content so pages fill the screen instead of a narrow column */
+  .max-w-6xl{max-width:90rem !important;}
+  .max-w-7xl{max-width:90rem !important;}
+</style>
+<script>
+(function(){
+  var p = location.pathname.replace(/\/$/, '') || '/';
+  document.querySelectorAll('.nav-tab').forEach(function(t){
+    var tp = t.getAttribute('data-path');
+    if (tp === p || (tp !== '/' && p.indexOf(tp) === 0)) t.classList.add('active');
+  });
+  // Show the signed-in user + logout.
+  fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){
+    if (d && d.user) {
+      var m = document.getElementById('user-menu');
+      document.getElementById('user-name').textContent = d.user.display_name || d.user.email;
+      m.style.display = 'flex';
+    }
+  }).catch(function(){});
+})();
+function pokeLogout(){
+  fetch('/api/auth/logout', {method:'POST'}).then(function(){ location.href = '/login'; });
+}
+</script>

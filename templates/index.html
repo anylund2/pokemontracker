@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokePop Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --red:#CC0000; --blue:#1B4F9E; --yellow:#FFD700;
+      --dark:#1A1A2E; --bg:#EDF2F7; --panel:#FFFFFF;
+      --border:#CBD5E0; --text:#1A202C; --muted:#718096;
+      --pixel:'Press Start 2P',monospace;
+    }
+    body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif;
+      background-image:radial-gradient(circle,#CBD5E0 1px,transparent 1px);
+      background-size:22px 22px; }
+    .panel { background:white; border:2px solid var(--border); border-radius:10px; }
+
+    /* Gem rate badge colors */
+    .gem-sweet  { background:#DCFCE7; color:#15803D; }
+    .gem-ok     { background:#FEF3C7; color:#92400E; }
+    .gem-bad    { background:#FEE2E2; color:#991B1B; }
+    .gem-none   { background:#F1F5F9; color:#64748b; }
+
+    /* Sortable table headers */
+    th.sortable { cursor:pointer; user-select:none; }
+    th.sortable:hover { color:var(--blue); }
+    th.sorted-asc::after  { content:' ↑'; color:var(--blue); }
+    th.sorted-desc::after { content:' ↓'; color:var(--blue); }
+
+    input[type=range] { accent-color:var(--blue); }
+
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:#EDF2F7; }
+    ::-webkit-scrollbar-thumb { background:#CBD5E0; border-radius:3px; }
+
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .spinner { animation:spin 1s linear infinite; display:inline-block; }
+
+    #card-tbody tr:hover { background:#F7FAFC; }
+    #card-tbody tr { transition:background .1s; }
+    #card-tbody td { color:var(--text); border-bottom:1px solid var(--border); }
+
+    .progress-bar { height:3px; background:var(--blue); transition:width .3s; }
+
+    @keyframes rayquaza-bob {
+      0%, 100% { transform: translateY(-2px); }
+      50%       { transform: translateY(6px); }
+    }
+    input:not([type=range]):not([type=file]):not([type=checkbox]),
+    select { background:#FAFAFA; border:1.5px solid var(--border); color:var(--text);
+      outline:none; border-radius:6px; padding:8px 12px; }
+    input:not([type=range]):focus, select:focus {
+      border-color:var(--blue); box-shadow:0 0 0 2px rgba(27,79,158,.1); }
+    #toast.success { background:#D1FAE5;color:#065F46;border:1.5px solid #6EE7B7; }
+    #toast.error   { background:#FEE2E2;color:#991B1B;border:1.5px solid #FCA5A5; }
+    #toast.info    { background:#EBF4FF;color:#1D4ED8;border:1.5px solid #93C5FD; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- HEADER -->
+{% include 'nav.html' %}
+<div style="background:#F7FAFC;border-bottom:1px solid var(--border);">
+  <div class="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+    <div style="font-family:var(--pixel);font-size:7px;color:var(--muted);">PSA POP × EBAY SOLD DATA</div>
+    <span id="ebay-status" style="font-family:var(--pixel);font-size:6px;padding:5px 10px;border-radius:5px;background:#1E3A5F;color:#93C5FD;">eBay: checking…</span>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed top-4 right-4 z-50 hidden px-4 py-3 rounded-lg text-sm font-medium shadow-lg max-w-xs"></div>
+
+<!-- PROGRESS BAR -->
+<div style="height:3px;background:var(--border);">
+  <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+</div>
+
+<!-- MAIN -->
+<main class="max-w-screen-2xl mx-auto px-4 py-6 space-y-4">
+
+  <!-- STEP 1: Set + Load -->
+  <div class="panel p-5">
+    <div class="flex flex-wrap items-end gap-4">
+      <div class="flex-1 min-w-48">
+        <label class="block text-xs font-semibold uppercase tracking-wide mb-1" style="color:var(--muted);font-family:var(--pixel);font-size:6px;">Pokemon Set</label>
+        <select id="set-select" class="w-full text-sm" style="border-radius:7px;">
+          <option value="">Loading sets…</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wide mb-1" style="color:var(--muted);font-family:var(--pixel);font-size:6px;">Year (for GemRate)</label>
+        <input id="year-input" type="text" placeholder="e.g. 2024" maxlength="4"
+          class="w-28 text-sm" style="border-radius:7px;" />
+      </div>
+      <button id="load-btn" onclick="loadCards()"
+        style="background:var(--blue);color:white;font-family:var(--pixel);font-size:8px;padding:10px 18px;border-radius:7px;border:none;cursor:pointer;">
+        LOAD SET
+      </button>
+      <span id="card-count" class="text-sm self-center" style="color:var(--muted);font-family:var(--pixel);font-size:7px;"></span>
+    </div>
+  </div>
+
+  <!-- STEP 2: Filters + PSA Source -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- Rarity Filter -->
+    <div class="panel p-5">
+      <h2 style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:.5px;margin-bottom:12px;">RARITY</h2>
+      <div id="rarity-list" class="space-y-1.5 text-sm" style="color:var(--text)">
+        <p class="text-xs" style="color:var(--muted)">Load a set first</p>
+      </div>
+      <div class="mt-3 flex gap-2">
+        <button onclick="selectAllRarities(true)" class="text-xs" style="color:var(--blue)">All</button>
+        <span style="color:var(--border)">|</span>
+        <button onclick="selectAllRarities(false)" class="text-xs" style="color:var(--muted)">None</button>
+      </div>
+    </div>
+
+    <!-- Pop + Gem Rate Filters -->
+    <div class="panel p-5 space-y-4">
+      <h2 style="font-family:var(--pixel);font-size:7px;color:var(--muted);margin-bottom:12px;">POP & GEM FILTERS</h2>
+      <div>
+        <div class="flex justify-between text-xs mb-1" style="color:var(--muted)">
+          <span>Gem Rate</span>
+          <span><span id="gem-min-val">15</span>% – <span id="gem-max-val">50</span>%</span>
+        </div>
+        <div class="flex gap-2 items-center">
+          <input type="range" id="gem-min" min="0" max="100" value="15" class="flex-1" oninput="updateFilter()">
+          <input type="range" id="gem-max" min="0" max="100" value="50" class="flex-1" oninput="updateFilter()">
+        </div>
+        <p class="text-xs mt-1" style="color:var(--muted)">Sweet spot: 20–45%</p>
+      </div>
+      <div>
+        <div class="flex justify-between text-xs mb-1" style="color:var(--muted)">
+          <span>PSA 10 Pop</span>
+          <span><span id="pop-min-val">0</span> – <span id="pop-max-val">800</span></span>
+        </div>
+        <div class="flex gap-2 items-center">
+          <input type="range" id="pop-min" min="0" max="5000" step="25" value="0" class="flex-1" oninput="updateFilter()">
+          <input type="range" id="pop-max" min="0" max="5000" step="25" value="800" class="flex-1" oninput="updateFilter()">
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between text-xs mb-1" style="color:var(--muted)">
+          <span>Min eBay Sales (30d)</span>
+          <span id="sales-min-val">0</span>
+        </div>
+        <input type="range" id="sales-min" min="0" max="30" value="0" class="w-full" oninput="updateFilter()">
+      </div>
+    </div>
+
+    <!-- PSA Data Source -->
+    <div class="panel p-5 space-y-3">
+      <h2 style="font-family:var(--pixel);font-size:7px;color:var(--muted);margin-bottom:12px;">PSA POP DATA SOURCE</h2>
+
+      <button id="psa-auto-btn" onclick="startPsaScrape()"
+        style="width:100%;padding:10px 14px;background:var(--blue);color:white;border-radius:8px;border:none;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;">
+        <span id="psa-auto-icon" style="font-size:18px">🤖</span>
+        <div>
+          <div style="font-family:var(--pixel);font-size:7px;margin-bottom:4px;" id="psa-auto-label">AUTO-FETCH FROM PSA</div>
+          <div style="font-size:11px;opacity:.8;" id="psa-auto-sub">Logs in with your PSA credentials</div>
+        </div>
+      </button>
+
+      <label style="width:100%;padding:10px 14px;background:#F7FAFC;border:2px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <span style="font-size:18px">📄</span>
+        <div>
+          <div style="font-family:var(--pixel);font-size:7px;margin-bottom:4px;">UPLOAD PSA CSV</div>
+          <div style="font-size:11px;color:var(--muted)">Export from psacard.com → pop report</div>
+        </div>
+        <input type="file" id="csv-upload" accept=".csv" class="hidden" onchange="uploadCsv(this)" />
+      </label>
+
+      <div id="pop-status" class="text-xs px-1" style="color:var(--muted)">No pop data loaded</div>
+      <div id="psa-progress" class="hidden">
+        <div style="height:3px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;background:var(--blue);border-radius:3px;transition:width .5s" id="psa-progress-bar" style="width:2%"></div>
+        </div>
+        <p class="text-xs mt-1" style="color:var(--muted)" id="psa-progress-msg">Launching browser, logging in…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Fetch + Table -->
+  <div class="panel">
+    <!-- Table toolbar -->
+    <div class="flex flex-wrap items-center gap-3 px-5 py-3" style="border-bottom:1px solid var(--border);">
+      <button id="fetch-ebay-btn" onclick="fetchEbayAll()"
+        style="padding:8px 16px;background:var(--blue);color:white;font-family:var(--pixel);font-size:7px;border-radius:7px;border:none;cursor:pointer;">
+        FETCH EBAY SOLD
+      </button>
+      <span id="fetch-status" class="text-sm" style="color:var(--muted)"></span>
+      <div class="ml-auto flex items-center gap-3 text-xs text-slate-400">
+        <span id="showing-count">0 cards shown</span>
+        <button onclick="exportCsv()" class="text-blue-400 hover:text-blue-300">↓ Export CSV</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);background:#F7FAFC;">
+            <th class="px-4 py-3 text-left w-12"></th>
+            <th class="px-4 py-3 text-left sortable" data-col="name" onclick="sortBy('name')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">Card</th>
+            <th class="px-4 py-3 text-left sortable" data-col="number" onclick="sortBy('number')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">No.</th>
+            <th class="px-4 py-3 text-left sortable" data-col="rarity" onclick="sortBy('rarity')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">Rarity</th>
+            <th class="px-4 py-3 text-right sortable" data-col="psa10" onclick="sortBy('psa10')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">PSA 10s</th>
+            <th class="px-4 py-3 text-right sortable" data-col="total" onclick="sortBy('total')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">Total</th>
+            <th class="px-4 py-3 text-right sortable" data-col="gemRate" onclick="sortBy('gemRate')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">Gem%</th>
+            <th class="px-4 py-3 text-right sortable" data-col="avgPrice" onclick="sortBy('avgPrice')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">Avg PSA10</th>
+            <th class="px-4 py-3 text-right sortable" data-col="salesCount" onclick="sortBy('salesCount')" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">Sales/30d</th>
+            <th class="px-4 py-3 text-right" style="font-family:var(--pixel);font-size:7px;color:var(--muted)">eBay</th>
+          </tr>
+        </thead>
+        <tbody id="card-tbody">
+          <tr>
+            <td colspan="10" class="px-4 py-12 text-center text-slate-500">
+              Load a set to get started
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- CARD DETAIL MODAL -->
+<div id="modal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4"
+     style="background:rgba(0,0,0,.6);backdrop-filter:blur(4px);" onclick="closeModal(event)">
+  <div class="panel max-w-lg w-full p-0 overflow-hidden" onclick="event.stopPropagation()">
+    <div style="background:linear-gradient(135deg,var(--dark),#0F3460);padding:14px 20px;border-bottom:3px solid var(--yellow);">
+      <div class="flex items-start gap-4">
+        <img id="modal-img" src="" class="w-16 h-auto rounded-lg" style="box-shadow:0 2px 8px rgba(0,0,0,.3)" />
+        <div class="flex-1 min-w-0">
+          <h2 id="modal-name" style="font-family:var(--pixel);font-size:10px;color:var(--yellow);margin-bottom:6px;line-height:1.6;"></h2>
+          <p id="modal-set" class="text-xs" style="color:#93C5FD;"></p>
+          <p id="modal-rarity" class="text-xs mt-1" style="color:#64748B;"></p>
+        </div>
+        <button onclick="document.getElementById('modal').classList.add('hidden')" style="color:#93C5FD;font-size:18px;line-height:1;">✕</button>
+      </div>
+    </div>
+    <div class="p-5 space-y-4">
+    <div class="grid grid-cols-3 gap-3 text-center">
+      <div style="background:#F0FDF4;border:2px solid #86EFAC;border-radius:8px;padding:12px">
+        <div id="modal-psa10" class="text-xl font-bold" style="color:#15803D">—</div>
+        <div class="text-xs mt-1" style="color:var(--muted)">PSA 10s</div>
+      </div>
+      <div style="background:#FEF3C7;border:2px solid #FCD34D;border-radius:8px;padding:12px">
+        <div id="modal-gemrate" class="text-xl font-bold" style="color:#92400E">—</div>
+        <div class="text-xs mt-1" style="color:var(--muted)">Gem Rate</div>
+      </div>
+      <div style="background:#EBF4FF;border:2px solid #93C5FD;border-radius:8px;padding:12px">
+        <div id="modal-avg" class="text-xl font-bold" style="color:var(--blue)">—</div>
+        <div class="text-xs mt-1" style="color:var(--muted)">Avg PSA 10</div>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-family:var(--pixel);font-size:7px;color:var(--muted);margin-bottom:8px;">RECENT EBAY SOLD (PSA 10)</h3>
+      <div id="modal-sales" class="space-y-1 max-h-48 overflow-y-auto text-sm"></div>
+    </div>
+    </div><!-- /p-5 -->
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  sets: [],
+  cards: [],
+  popMap: {},   // cardName (lowercased) -> {psa10, total, gemRate}
+  ebayMap: {},  // card.id -> {count, avgPrice, minPrice, maxPrice, items}
+  rarityFilter: new Set(),
+  gemMin: 15, gemMax: 50,
+  popMin: 0, popMax: 800,
+  salesMin: 0,
+  sort: { col: null, dir: 1 },
+};
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded', async () => {
+  checkEbayStatus();
+  checkPsaStatus();
+  await loadSets();
+});
+
+async function checkPsaStatus() {
+  try {
+    const r = await fetch('/api/pop/psa/status');
+    const d = await r.json();
+    const btn = document.getElementById('psa-auto-btn');
+    const sub = document.getElementById('psa-auto-sub');
+    if (!d.configured) {
+      btn.disabled = true;
+      sub.textContent = 'Add PSA_EMAIL + PSA_PASSWORD to .env to enable';
+    } else {
+      sub.textContent = `Logged in as ${d.email}`;
+    }
+  } catch {}
+}
+
+async function startPsaScrape() {
+  const setId = document.getElementById('set-select').value;
+  if (!setId) return toast('Load a set first', 'warn');
+
+  const set = state.sets.find(s => s.id === setId);
+  if (!set) return;
+
+  // PSA set names often differ from TCG API names — use the TCG name as search query
+  const psaSetName = set.name;
+
+  const btn = document.getElementById('psa-auto-btn');
+  const label = document.getElementById('psa-auto-label');
+  const icon = document.getElementById('psa-auto-icon');
+  const progress = document.getElementById('psa-progress');
+  const progressMsg = document.getElementById('psa-progress-msg');
+  const status = document.getElementById('pop-status');
+
+  btn.disabled = true;
+  label.textContent = 'Scraping PSA…';
+  icon.textContent = '⏳';
+  progress.classList.remove('hidden');
+  progressMsg.textContent = 'Launching browser, logging in to PSA…';
+  status.textContent = 'PSA scrape in progress…';
+
+  let jobId = null;
+
+  try {
+    const r = await fetch('/api/pop/psa/scrape', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({set_name: psaSetName}),
+    });
+    const d = await r.json();
+
+    if (d.error) throw new Error(d.error);
+
+    // Already cached
+    if (d.cached && d.result) {
+      applyPsaResult(d.result);
+      resetPsaBtn();
+      return;
+    }
+
+    jobId = d.job_id;
+  } catch(e) {
+    toast('PSA scrape failed to start: ' + e.message, 'error');
+    resetPsaBtn();
+    return;
+  }
+
+  // Poll for completion
+  const progressBar = document.getElementById('psa-progress-bar');
+
+  const pollTimer = setInterval(async () => {
+    try {
+      const r = await fetch(`/api/pop/psa/job/${jobId}`);
+      const job = await r.json();
+
+      // Show real progress from backend
+      if (job.message) progressMsg.textContent = job.message;
+      if (job.progress != null) progressBar.style.width = Math.max(2, job.progress) + '%';
+
+      if (job.status === 'done') {
+        clearInterval(pollTimer);
+        progressBar.style.width = '100%';
+        applyPsaResult(job.result);
+        resetPsaBtn();
+      } else if (job.status === 'error') {
+        clearInterval(pollTimer);
+        toast('PSA scrape error: ' + job.error, 'error');
+        status.textContent = 'PSA scrape failed: ' + job.error;
+        resetPsaBtn();
+      }
+    } catch(e) {
+      clearInterval(pollTimer);
+      toast('Job polling error', 'error');
+      resetPsaBtn();
+    }
+  }, 3000);
+}
+
+function applyPsaResult(result) {
+  const cards = result.cards || [];
+  state.popMap = {};
+  cards.forEach(c => {
+    const key = c.name.toLowerCase().trim();
+    state.popMap[key] = {
+      psa10: c.psa10,
+      total: c.total,
+      gemRate: c.gemRate,
+      psa9: c.psa9 || 0,
+      grades: c.grades || {},
+    };
+    // Also index by name + number
+    if (c.number) {
+      state.popMap[`${key} ${c.number}`.trim()] = state.popMap[key];
+      state.popMap[`${key} #${c.number}`.trim()] = state.popMap[key];
+    }
+  });
+  document.getElementById('pop-status').textContent =
+    `PSA data loaded: ${cards.length} cards (source: ${result.source})`;
+  toast(`PSA pop data loaded — ${cards.length} cards`, 'success');
+  renderTable();
+}
+
+function resetPsaBtn() {
+  const btn = document.getElementById('psa-auto-btn');
+  document.getElementById('psa-auto-label').textContent = 'Auto-Fetch from PSA';
+  document.getElementById('psa-auto-icon').textContent = '🤖';
+  document.getElementById('psa-progress').classList.add('hidden');
+  btn.disabled = false;
+}
+
+async function checkEbayStatus() {
+  try {
+    const r = await fetch('/api/ebay/sold?card_name=test&card_number=test');
+    const d = await r.json();
+    const el = document.getElementById('ebay-status');
+    if (d.error === 'EBAY_APP_ID not set in .env') {
+      el.textContent = 'eBay: no API key';
+      el.className = 'px-2 py-1 rounded bg-red-950 text-red-400 text-xs';
+    } else {
+      el.textContent = 'eBay: connected';
+      el.className = 'px-2 py-1 rounded bg-green-950 text-green-400 text-xs';
+    }
+  } catch {
+    document.getElementById('ebay-status').textContent = 'eBay: error';
+  }
+}
+
+async function loadSets() {
+  try {
+    const r = await fetch('/api/sets');
+    state.sets = await r.json();
+    const sel = document.getElementById('set-select');
+    sel.innerHTML = '<option value="">— Choose a set —</option>';
+    state.sets.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.name} (${s.releaseDate.slice(0,4)}) — ${s.total} cards`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    toast('Failed to load sets: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// LOAD CARDS
+// ============================================================
+async function loadCards() {
+  const setId = document.getElementById('set-select').value;
+  if (!setId) return toast('Select a set first', 'warn');
+
+  setProgress(20);
+  document.getElementById('load-btn').disabled = true;
+  document.getElementById('card-count').textContent = 'Loading…';
+
+  try {
+    const r = await fetch(`/api/cards/${setId}`);
+    state.cards = await r.json();
+    if (state.cards.error) throw new Error(state.cards.error);
+
+    // Reset derived data when set changes
+    state.ebayMap = {};
+    state.popMap = {};
+
+    buildRarityFilter();
+    setProgress(100);
+    setTimeout(() => setProgress(0), 500);
+    document.getElementById('card-count').textContent = `${state.cards.length} cards`;
+    document.getElementById('pop-status').textContent = 'No pop data loaded';
+    renderTable();
+  } catch (e) {
+    toast('Error loading cards: ' + e.message, 'error');
+    setProgress(0);
+  }
+  document.getElementById('load-btn').disabled = false;
+}
+
+// ============================================================
+// RARITY FILTER
+// ============================================================
+function buildRarityFilter() {
+  const counts = {};
+  state.cards.forEach(c => {
+    counts[c.rarity] = (counts[c.rarity] || 0) + 1;
+  });
+
+  // Order: chase rarities first
+  const order = [
+    'Hyper Rare', 'Special Illustration Rare', 'Illustration Rare',
+    'ACE SPEC Rare', 'Ultra Rare', 'Double Rare', 'Rare Holo VMAX',
+    'Rare Holo V', 'Full Art', 'Secret Rare', 'Rare Rainbow',
+    'Rare Holo', 'Rare', 'Common', 'Uncommon', 'Unknown',
+  ];
+  const sorted = Object.keys(counts).sort((a, b) => {
+    const ai = order.indexOf(a), bi = order.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+
+  // Default: select all chase rarity types
+  const chaseRarities = new Set([
+    'Hyper Rare', 'Special Illustration Rare', 'Illustration Rare',
+    'ACE SPEC Rare', 'Ultra Rare', 'Full Art', 'Secret Rare', 'Rare Rainbow',
+  ]);
+  state.rarityFilter = new Set(sorted.filter(r => chaseRarities.has(r)));
+
+  const list = document.getElementById('rarity-list');
+  list.innerHTML = sorted.map(r => `
+    <label class="flex items-center gap-2 cursor-pointer hover:text-white transition-colors">
+      <input type="checkbox" value="${r}" ${state.rarityFilter.has(r) ? 'checked' : ''}
+        onchange="toggleRarity(this)" class="rounded accent-blue-500" />
+      <span>${r}</span>
+      <span class="ml-auto text-slate-500 text-xs">${counts[r]}</span>
+    </label>
+  `).join('');
+}
+
+function toggleRarity(cb) {
+  if (cb.checked) state.rarityFilter.add(cb.value);
+  else state.rarityFilter.delete(cb.value);
+  renderTable();
+}
+
+function selectAllRarities(all) {
+  document.querySelectorAll('#rarity-list input[type=checkbox]').forEach(cb => {
+    cb.checked = all;
+    if (all) state.rarityFilter.add(cb.value);
+    else state.rarityFilter.delete(cb.value);
+  });
+  renderTable();
+}
+
+// ============================================================
+// FILTERS
+// ============================================================
+function updateFilter() {
+  const gemMin  = +document.getElementById('gem-min').value;
+  const gemMax  = +document.getElementById('gem-max').value;
+  const popMin  = +document.getElementById('pop-min').value;
+  const popMax  = +document.getElementById('pop-max').value;
+  const saleMin = +document.getElementById('sales-min').value;
+
+  document.getElementById('gem-min-val').textContent  = Math.min(gemMin, gemMax);
+  document.getElementById('gem-max-val').textContent  = Math.max(gemMin, gemMax);
+  document.getElementById('pop-min-val').textContent  = Math.min(popMin, popMax);
+  document.getElementById('pop-max-val').textContent  = popMax >= 5000 ? '∞' : Math.max(popMin, popMax);
+  document.getElementById('sales-min-val').textContent = saleMin;
+
+  state.gemMin   = Math.min(gemMin, gemMax);
+  state.gemMax   = Math.max(gemMin, gemMax);
+  state.popMin   = Math.min(popMin, popMax);
+  state.popMax   = popMax >= 5000 ? Infinity : Math.max(popMin, popMax);
+  state.salesMin = saleMin;
+
+  renderTable();
+}
+
+// ============================================================
+// PSA POP DATA
+// ============================================================
+async function tryGemRate() {
+  const setId = document.getElementById('set-select').value;
+  if (!setId) return toast('Load a set first', 'warn');
+
+  const set = state.sets.find(s => s.id === setId);
+  const year = document.getElementById('year-input').value.trim();
+  const status = document.getElementById('pop-status');
+  status.textContent = 'Trying GemRate…';
+
+  // Build the set_name in the format GemRate expects
+  // GemRate uses PSA's set naming (e.g. "Pokemon SSP EN-Surging Sparks")
+  // We send the raw set name and let the user adjust if needed
+  const setName = set ? set.name : setId;
+
+  try {
+    const r = await fetch(`/api/pop/gemrate?set_name=${encodeURIComponent(setName)}&year=${year}`);
+    const d = await r.json();
+
+    if (d.error) {
+      status.textContent = `GemRate failed: ${d.message || d.error}`;
+      toast('GemRate blocked — use CSV upload instead', 'warn');
+      return;
+    }
+
+    if (d.items && d.items.length > 0) {
+      processPopItems(d.items);
+      status.textContent = `GemRate: loaded ${d.items.length} entries`;
+      toast('Pop data loaded from GemRate', 'success');
+      renderTable();
+    } else {
+      status.textContent = 'GemRate returned data but no card rows found. Try CSV upload.';
+      toast('GemRate: no card data parsed', 'warn');
+    }
+  } catch (e) {
+    status.textContent = 'GemRate fetch failed: ' + e.message;
+    toast('GemRate error', 'error');
+  }
+}
+
+function processPopItems(items) {
+  state.popMap = {};
+  items.forEach(item => {
+    const name = (item.subject || item.name || item.card || '').toLowerCase().trim();
+    const psa10 = parseInt(item['10'] || item.psa10 || item.grade10 || 0, 10);
+    const total = parseInt(item.total || item.totalGraded || 0, 10);
+    if (name) {
+      state.popMap[name] = {
+        psa10,
+        total,
+        gemRate: total > 0 ? Math.round(psa10 / total * 1000) / 10 : 0,
+      };
+    }
+  });
+}
+
+function uploadCsv(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('pop-status');
+  status.textContent = 'Parsing CSV…';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/pop/upload', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { toast(d.error, 'error'); return; }
+      state.popMap = {};
+      d.cards.forEach(c => {
+        state.popMap[c.name.toLowerCase().trim()] = {
+          psa10: c.psa10,
+          total: c.total,
+          gemRate: c.gemRate,
+        };
+      });
+      status.textContent = `CSV: loaded ${d.count} cards`;
+      toast(`Loaded pop data for ${d.count} cards`, 'success');
+      renderTable();
+    })
+    .catch(e => { toast('CSV parse error: ' + e.message, 'error'); });
+}
+
+function lookupPop(card) {
+  // Try exact name match, then name + number
+  const candidates = [
+    card.name.toLowerCase(),
+    `${card.name} #${card.number}`.toLowerCase(),
+    `${card.name} ${card.number}`.toLowerCase(),
+  ];
+  for (const key of candidates) {
+    if (state.popMap[key]) return state.popMap[key];
+  }
+  // Fuzzy: check if any pop key starts with the card name
+  const cardName = card.name.toLowerCase();
+  for (const [key, val] of Object.entries(state.popMap)) {
+    if (key.startsWith(cardName)) return val;
+  }
+  return null;
+}
+
+// ============================================================
+// EBAY DATA
+// ============================================================
+async function fetchEbayAll() {
+  const visible = filteredCards();
+  if (!visible.length) return toast('No cards to fetch', 'warn');
+
+  const btn = document.getElementById('fetch-ebay-btn');
+  btn.disabled = true;
+  const status = document.getElementById('fetch-status');
+
+  let done = 0;
+  const total = visible.length;
+  setProgress(5);
+
+  for (const card of visible) {
+    if (state.ebayMap[card.id]) { done++; continue; } // use cache
+
+    status.textContent = `Fetching ${done + 1}/${total}: ${card.name}…`;
+    setProgress(5 + (done / total) * 90);
+
+    const params = new URLSearchParams({
+      card_name: card.name,
+      card_number: card.number,
+      set_name: card.setName,
+      grade: 'PSA 10',
+    });
+
+    try {
+      const r = await fetch(`/api/ebay/sold?${params}`);
+      const d = await r.json();
+      if (!d.error) state.ebayMap[card.id] = d;
+    } catch {}
+
+    done++;
+    // Small delay to avoid hammering eBay API
+    await sleep(300);
+  }
+
+  setProgress(100);
+  setTimeout(() => setProgress(0), 600);
+  status.textContent = `Fetched ${done} cards`;
+  btn.disabled = false;
+  renderTable();
+}
+
+async function fetchEbayOne(cardId) {
+  const card = state.cards.find(c => c.id === cardId);
+  if (!card) return;
+
+  const params = new URLSearchParams({
+    card_name: card.name,
+    card_number: card.number,
+    set_name: card.setName,
+    grade: 'PSA 10',
+  });
+
+  const btn = document.getElementById(`ebay-btn-${cardId}`);
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+
+  try {
+    const r = await fetch(`/api/ebay/sold?${params}`);
+    const d = await r.json();
+    if (!d.error) {
+      state.ebayMap[card.id] = d;
+      renderTable();
+    } else {
+      toast('eBay error: ' + (d.message || d.error), 'error');
+    }
+  } catch (e) {
+    toast('eBay fetch failed', 'error');
+  }
+}
+
+// ============================================================
+// SORTING
+// ============================================================
+function sortBy(col) {
+  if (state.sort.col === col) state.sort.dir *= -1;
+  else { state.sort.col = col; state.sort.dir = 1; }
+
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.dataset.col === col) {
+      th.classList.add(state.sort.dir === 1 ? 'sorted-asc' : 'sorted-desc');
+    }
+  });
+
+  renderTable();
+}
+
+function sortedCards(cards) {
+  const { col, dir } = state.sort;
+  if (!col) return cards;
+
+  return [...cards].sort((a, b) => {
+    let av, bv;
+    switch (col) {
+      case 'name':       av = a.name; bv = b.name; break;
+      case 'number':     av = parseInt(a.number) || 0; bv = parseInt(b.number) || 0; break;
+      case 'rarity':     av = a.rarity; bv = b.rarity; break;
+      case 'psa10':      av = lookupPop(a)?.psa10 ?? -1; bv = lookupPop(b)?.psa10 ?? -1; break;
+      case 'total':      av = lookupPop(a)?.total ?? -1; bv = lookupPop(b)?.total ?? -1; break;
+      case 'gemRate':    av = lookupPop(a)?.gemRate ?? -1; bv = lookupPop(b)?.gemRate ?? -1; break;
+      case 'avgPrice':   av = state.ebayMap[a.id]?.avgPrice ?? -1; bv = state.ebayMap[b.id]?.avgPrice ?? -1; break;
+      case 'salesCount': av = state.ebayMap[a.id]?.count ?? -1; bv = state.ebayMap[b.id]?.count ?? -1; break;
+      default: return 0;
+    }
+    if (typeof av === 'string') return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+}
+
+// ============================================================
+// FILTERING
+// ============================================================
+function filteredCards() {
+  return state.cards.filter(card => {
+    if (state.rarityFilter.size > 0 && !state.rarityFilter.has(card.rarity)) return false;
+
+    const pop = lookupPop(card);
+    if (pop) {
+      if (pop.gemRate < state.gemMin || pop.gemRate > state.gemMax) return false;
+      if (pop.psa10 < state.popMin || pop.psa10 > state.popMax) return false;
+    }
+
+    const ebay = state.ebayMap[card.id];
+    if (ebay && state.salesMin > 0 && ebay.count < state.salesMin) return false;
+
+    return true;
+  });
+}
+
+// ============================================================
+// RENDER TABLE
+// ============================================================
+function renderTable() {
+  const cards = sortedCards(filteredCards());
+  document.getElementById('showing-count').textContent = `${cards.length} cards shown`;
+
+  const tbody = document.getElementById('card-tbody');
+  if (!cards.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-12 text-center text-slate-500">
+      No cards match the current filters
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = cards.map(card => {
+    const pop  = lookupPop(card);
+    const ebay = state.ebayMap[card.id];
+
+    // Gem rate badge
+    let gemBadge = '<span class="px-2 py-0.5 rounded text-xs gem-none">—</span>';
+    if (pop) {
+      const cls = pop.gemRate >= 20 && pop.gemRate <= 45 ? 'gem-sweet'
+                : pop.gemRate > 0 ? 'gem-ok' : 'gem-bad';
+      gemBadge = `<span class="px-2 py-0.5 rounded text-xs ${cls}">${pop.gemRate}%</span>`;
+    }
+
+    const psa10 = pop ? pop.psa10.toLocaleString() : '<span class="text-slate-600">—</span>';
+    const total = pop ? pop.total.toLocaleString() : '<span class="text-slate-600">—</span>';
+    const avg   = ebay ? `<span class="text-green-400 font-semibold">$${ebay.avgPrice.toFixed(2)}</span>` : '<span class="text-slate-600">—</span>';
+    const sales = ebay
+      ? `<span class="${ebay.count >= 5 ? 'text-green-300' : ebay.count > 0 ? 'text-yellow-300' : 'text-slate-500'}">${ebay.count}</span>`
+      : '<span class="text-slate-600">—</span>';
+
+    const rarityShort = {
+      'Illustration Rare': 'IR',
+      'Special Illustration Rare': 'SIR',
+      'Hyper Rare': 'HR',
+      'Double Rare': 'RR',
+      'Ultra Rare': 'UR',
+      'ACE SPEC Rare': 'ACE',
+      'Full Art': 'FA',
+      'Secret Rare': 'SR',
+      'Rare Rainbow': 'RR',
+    }[card.rarity] || card.rarity;
+
+    const img = card.smallImage
+      ? `<img src="${card.smallImage}" class="w-10 h-auto rounded" loading="lazy" onerror="this.style.display='none'">`
+      : `<div class="w-10 h-14 bg-slate-700 rounded flex items-center justify-center text-xs text-slate-500">?</div>`;
+
+    const ebayBtn = ebay
+      ? `<button onclick="openModal('${card.id}')" class="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-blue-300 transition-colors">View</button>`
+      : `<button id="ebay-btn-${card.id}" onclick="fetchEbayOne('${card.id}')" class="text-xs px-2 py-1 bg-slate-700 hover:bg-green-700 rounded text-slate-300 hover:text-white transition-colors">Fetch</button>`;
+
+    return `
+      <tr data-id="${card.id}" class="border-b border-slate-800 cursor-pointer" onclick="openModal('${card.id}')">
+        <td class="px-3 py-2">${img}</td>
+        <td class="px-4 py-2 font-medium text-white">${card.name}</td>
+        <td class="px-4 py-2 text-slate-400">${card.number}</td>
+        <td class="px-4 py-2">
+          <span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-300">${rarityShort}</span>
+        </td>
+        <td class="px-4 py-2 text-right font-mono text-slate-200">${psa10}</td>
+        <td class="px-4 py-2 text-right font-mono text-slate-400">${total}</td>
+        <td class="px-4 py-2 text-right">${gemBadge}</td>
+        <td class="px-4 py-2 text-right font-mono">${avg}</td>
+        <td class="px-4 py-2 text-right">${sales}</td>
+        <td class="px-4 py-2 text-right" onclick="event.stopPropagation()">${ebayBtn}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(cardId) {
+  const card = state.cards.find(c => c.id === cardId);
+  if (!card) return;
+
+  const pop  = lookupPop(card);
+  const ebay = state.ebayMap[cardId];
+
+  document.getElementById('modal-img').src = card.smallImage || '';
+  document.getElementById('modal-name').textContent = card.name;
+  document.getElementById('modal-set').textContent = `${card.setName} · #${card.number}`;
+  document.getElementById('modal-rarity').textContent = card.rarity;
+  document.getElementById('modal-psa10').textContent = pop ? pop.psa10.toLocaleString() : '—';
+  document.getElementById('modal-gemrate').textContent = pop ? `${pop.gemRate}%` : '—';
+  document.getElementById('modal-avg').textContent = ebay ? `$${ebay.avgPrice.toFixed(2)}` : '—';
+
+  const salesEl = document.getElementById('modal-sales');
+  if (ebay && ebay.items.length > 0) {
+    salesEl.innerHTML = ebay.items.map(s => `
+      <div class="flex justify-between items-center py-1 border-b border-slate-700">
+        <a href="${s.url}" target="_blank" class="text-slate-300 hover:text-blue-400 truncate max-w-xs text-xs" title="${s.title}">
+          ${s.title.slice(0, 60)}${s.title.length > 60 ? '…' : ''}
+        </a>
+        <span class="text-green-400 font-semibold ml-3 shrink-0">$${s.price.toFixed(2)}</span>
+      </div>
+    `).join('');
+  } else if (ebay) {
+    salesEl.innerHTML = '<p class="text-slate-500 text-xs">No sold listings found in the last 30 days.</p>';
+  } else {
+    salesEl.innerHTML = `
+      <p class="text-slate-500 text-xs mb-2">eBay data not yet fetched for this card.</p>
+      <button onclick="fetchEbayOne('${cardId}'); closeModal()"
+        class="text-xs px-3 py-1.5 bg-green-800 hover:bg-green-700 text-green-200 rounded transition-colors">
+        Fetch eBay Data
+      </button>`;
+  }
+
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function closeModal(event) {
+  if (!event || event.target === document.getElementById('modal')) {
+    document.getElementById('modal').classList.add('hidden');
+  }
+}
+
+// ============================================================
+// EXPORT CSV
+// ============================================================
+function exportCsv() {
+  const cards = filteredCards();
+  if (!cards.length) return toast('No cards to export', 'warn');
+
+  const headers = ['Name','Number','Set','Rarity','PSA 10s','Total Graded','Gem Rate %','Avg PSA 10 Price','Sales/30d'];
+  const rows = cards.map(c => {
+    const pop  = lookupPop(c);
+    const ebay = state.ebayMap[c.id];
+    return [
+      c.name, c.number, c.setName, c.rarity,
+      pop ? pop.psa10 : '',
+      pop ? pop.total : '',
+      pop ? pop.gemRate : '',
+      ebay ? ebay.avgPrice : '',
+      ebay ? ebay.count : '',
+    ];
+  });
+
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pokepoptracker.csv';
+  a.click();
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function setProgress(pct) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  const colors = { success: 'bg-green-800 text-green-100', error: 'bg-red-900 text-red-100', warn: 'bg-yellow-800 text-yellow-100', info: 'bg-slate-700 text-white' };
+  el.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg max-w-xs ${colors[type] || colors.info}`;
+  el.textContent = msg;
+  el.style.opacity = '1';
+  el.classList.remove('hidden');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.classList.add('hidden'), 300); }, 3500);
+}
+</script>
+</body>
+</html>

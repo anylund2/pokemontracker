@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in | PokePop Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root{--red:#CC0000;--blue:#1B4F9E;--yellow:#FFD700;--dark:#1A1A2E;--bg:#EDF2F7;
+      --border:#CBD5E0;--text:#1A202C;--muted:#718096;--pixel:'Press Start 2P',monospace;--green:#16A34A;}
+    *{box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;color:var(--text);min-height:100vh;margin:0;
+      background:linear-gradient(135deg,#1D4ED8 0%,#2563EB 55%,#3B82F6 100%);
+      display:flex;align-items:center;justify-content:center;padding:20px;}
+    .card{background:#fff;border-radius:16px;width:100%;max-width:400px;overflow:hidden;
+      box-shadow:0 20px 60px rgba(0,0,0,.35);border:2px solid var(--yellow);}
+    .head{background:linear-gradient(135deg,var(--dark),#0F3460);padding:24px;text-align:center;border-bottom:3px solid var(--yellow);}
+    .logo{font-family:var(--pixel);font-size:18px;}
+    .logo .p1{color:var(--yellow);} .logo .p2{color:#fff;}
+    .tagline{color:#BFDBFE;font-size:12px;margin-top:8px;}
+    .seg{display:flex;border-bottom:1.5px solid var(--border);}
+    .seg button{flex:1;padding:14px;font-family:var(--pixel);font-size:8px;background:#F7FAFC;color:var(--muted);
+      border:none;cursor:pointer;border-bottom:3px solid transparent;}
+    .seg button.active{color:var(--red);background:#fff;border-bottom-color:var(--red);}
+    label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);display:block;margin-bottom:4px;}
+    input{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;background:#FAFAFA;}
+    input:focus{border-color:var(--blue);background:#fff;}
+    .btn{width:100%;padding:12px;background:var(--red);color:#fff;font-family:var(--pixel);font-size:9px;
+      border:none;border-radius:10px;cursor:pointer;letter-spacing:.5px;margin-top:4px;}
+    .btn:hover{filter:brightness(1.08);} .btn:disabled{opacity:.6;cursor:not-allowed;}
+    .err{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;border-radius:8px;padding:9px 12px;font-size:13px;}
+    .muted{color:var(--muted);font-size:12px;text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="logo"><span class="p1">POKE</span> <span class="p2">POP</span></div>
+      <div class="tagline">Your Pokémon card portfolio</div>
+    </div>
+    <div class="seg">
+      <button id="seg-login" class="active" onclick="setMode('login')">LOG IN</button>
+      <button id="seg-signup" onclick="setMode('signup')">SIGN UP</button>
+    </div>
+    <form id="form" class="p-6 space-y-4" onsubmit="submitForm(event)">
+      <div id="err" class="err" style="display:none"></div>
+      <div id="name-wrap" style="display:none">
+        <label for="display_name">Display name</label>
+        <input id="display_name" type="text" autocomplete="nickname" placeholder="Ash" />
+      </div>
+      <div>
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+        <div id="pw-hint" class="muted" style="text-align:left;margin-top:5px;display:none">At least 8 characters.</div>
+      </div>
+      <button id="submit" class="btn" type="submit">LOG IN</button>
+      <div class="muted" id="switch-hint">New here? <a href="#" onclick="setMode('signup');return false" style="color:var(--blue);font-weight:600">Create an account</a></div>
+    </form>
+  </div>
+
+<script>
+let mode = 'login';
+const qp = new URLSearchParams(location.search);
+const nextUrl = qp.get('next') || '/portfolio';
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('seg-login').classList.toggle('active', m === 'login');
+  document.getElementById('seg-signup').classList.toggle('active', m === 'signup');
+  document.getElementById('name-wrap').style.display = m === 'signup' ? 'block' : 'none';
+  document.getElementById('pw-hint').style.display = m === 'signup' ? 'block' : 'none';
+  document.getElementById('submit').textContent = m === 'signup' ? 'CREATE ACCOUNT' : 'LOG IN';
+  document.getElementById('password').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
+  document.getElementById('switch-hint').innerHTML = m === 'signup'
+    ? 'Already have an account? <a href="#" onclick="setMode(\'login\');return false" style="color:var(--blue);font-weight:600">Log in</a>'
+    : 'New here? <a href="#" onclick="setMode(\'signup\');return false" style="color:var(--blue);font-weight:600">Create an account</a>';
+  document.getElementById('err').style.display = 'none';
+}
+
+async function submitForm(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submit');
+  const errEl = document.getElementById('err');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  const payload = {
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value,
+    display_name: document.getElementById('display_name').value.trim(),
+  };
+  try {
+    const r = await fetch(`/api/auth/${mode}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+    location.href = nextUrl;
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
