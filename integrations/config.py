@@ -16,6 +16,7 @@ def _split_scopes(raw: str) -> list[str]:
     return [s for s in (raw or "").replace(",", " ").split() if s]
 
 
+
 # eBay default OAuth scopes covering BOTH sync directions:
 #   • read the signed-in user's own inventory/listings + write/push listings
 #     → sell.inventory
