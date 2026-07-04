@@ -402,7 +402,35 @@
       </div>
     </div>
 
-    <div class="panel overflow-x-auto">
+    <!-- Sort + view toggle -->
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xs" style="color:var(--muted);font-weight:700;">SORT</span>
+        <select id="collection-sort" onchange="setCollectionSort(this.value)"
+          class="text-xs px-2 py-1" style="border:1.5px solid var(--border);border-radius:6px;background:#fff;">
+          <option value="added_desc">Newest added</option>
+          <option value="added_asc">Oldest added</option>
+          <option value="name_asc">Name A–Z</option>
+          <option value="set_desc">Set (newest)</option>
+          <option value="paid_desc">Price paid ↓</option>
+          <option value="market_desc">Market value ↓</option>
+          <option value="change_desc">Day change % ↓</option>
+          <option value="change_asc">Day change % ↑</option>
+          <option value="gain_desc">Gain/Loss % ↓</option>
+          <option value="gain_asc">Gain/Loss % ↑</option>
+        </select>
+      </div>
+      <div class="flex" style="border:1.5px solid var(--border);border-radius:7px;overflow:hidden;">
+        <button id="view-table-btn" onclick="setCollectionView('table')"
+          style="padding:5px 12px;font-size:12px;font-weight:700;background:var(--blue);color:#fff;border:none;cursor:pointer;">☰ Table</button>
+        <button id="view-gallery-btn" onclick="setCollectionView('gallery')"
+          style="padding:5px 12px;font-size:12px;font-weight:700;background:#fff;color:var(--muted);border:none;cursor:pointer;">▦ Gallery</button>
+      </div>
+    </div>
+
+    <div id="cards-gallery" class="hidden" style="display:none;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:14px;"></div>
+
+    <div id="cards-table-panel" class="panel overflow-x-auto">
       <table class="w-full text-sm" style="border-collapse:collapse;">
         <thead>
           <tr style="border-bottom:2px solid var(--border);background:#F7FAFC;">
@@ -748,17 +776,24 @@
         Paste rows or upload a CSV. Columns: <b>name, set, number, condition, foil, quantity, price_paid, language</b> —
         only <b>name</b> is required. <a href="/api/collection/template" style="color:var(--blue);text-decoration:underline;">Download template</a>.
       </p>
-      <textarea id="import-text" rows="8" placeholder="name,set,number,condition,foil,quantity,price_paid,language&#10;Charizard,Base Set,4,NM,holofoil,1,250,EN&#10;Pikachu,Surging Sparks,238,LP,reverseHolofoil,2,,EN"
+      <textarea id="import-text" rows="7" placeholder="name,set,number,condition,foil,quantity,price_paid,language&#10;Charizard,Base Set,4,NM,holofoil,1,250,EN&#10;Pikachu,Surging Sparks,238,LP,reverseHolofoil,2,,EN"
+        oninput="onImportTextInput()"
         class="w-full px-3 py-2 text-sm font-mono" style="border-radius:8px;border:1.5px solid var(--border);"></textarea>
-      <div class="flex items-center gap-3 flex-wrap">
-        <label class="text-xs" style="color:var(--muted)">…or upload a file:</label>
-        <input id="import-file" type="file" accept=".csv,.tsv,.txt" class="text-xs" onchange="importFromFile()" />
-      </div>
+      <div style="text-align:center;color:var(--muted);font-size:11px;font-weight:700;">— OR —</div>
+      <!-- Styled file picker (the raw input is hidden; label triggers it) -->
+      <label for="import-file" id="import-drop"
+        style="display:flex;align-items:center;gap:10px;justify-content:center;padding:12px;border:2px dashed var(--border);border-radius:10px;cursor:pointer;background:#F8FAFC;transition:border-color .15s,background .15s;"
+        onmouseover="this.style.borderColor='var(--blue)';this.style.background='#EFF6FF'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.background='#F8FAFC'">
+        <span style="font-size:20px;">📄</span>
+        <span id="import-file-label" style="font-size:13px;color:var(--muted);">Choose a CSV / TSV file…</span>
+      </label>
+      <input id="import-file" type="file" accept=".csv,.tsv,.txt" style="display:none;" onchange="onImportFilePick()" />
       <div id="import-result" class="hidden rounded-lg p-3 text-xs" style="background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;"></div>
-      <div class="flex gap-3 justify-end">
+      <div class="flex gap-3 justify-end items-center">
         <button onclick="document.getElementById('import-modal').classList.add('hidden')"
           class="px-4 py-2 text-sm" style="color:var(--muted);">Close</button>
-        <button id="import-btn" onclick="importFromText()"
+        <button id="import-btn" onclick="runUnifiedImport()"
           class="px-4 py-2 text-white text-sm font-bold rounded-lg"
           style="background:var(--blue);font-family:var(--pixel);font-size:7px;letter-spacing:.5px;">IMPORT</button>
       </div>
@@ -1353,6 +1388,89 @@ async function loadCollection() {
   } catch {}
 }
 
+// ── Collection view + sort ───────────────────────────────────────────────────
+let collectionView = 'table';
+let collectionSort = 'added_desc';
+
+function setCollectionView(v) {
+  collectionView = v;
+  const t = document.getElementById('view-table-btn'), g = document.getElementById('view-gallery-btn');
+  const on = (b) => { b.style.background = 'var(--blue)'; b.style.color = '#fff'; };
+  const off = (b) => { b.style.background = '#fff'; b.style.color = 'var(--muted)'; };
+  (v === 'table' ? on : off)(t); (v === 'gallery' ? on : off)(g);
+  document.getElementById('cards-table-panel').style.display = v === 'table' ? '' : 'none';
+  document.getElementById('cards-gallery').style.display = v === 'gallery' ? 'grid' : 'none';
+  renderCollection();
+}
+function setCollectionSort(s) { collectionSort = s; renderCollection(); }
+
+// Per-card market info from the same portfolio source the table/portfolio use.
+function cardMarketInfo(c) {
+  const pf = pfMap[c.id] || {};
+  const qty = c.quantity || 1;
+  const unit = pf.unit_value != null ? pf.unit_value : null;
+  return {
+    value: unit != null ? unit * qty : null,
+    unit,
+    dayPct: pf.day_change_pct != null ? pf.day_change_pct : null,
+    pnlPct: pf.pnl_pct != null ? pf.pnl_pct : (pf.gain_since_add_pct != null ? pf.gain_since_add_pct : null),
+    paid: c.purchase_price ? c.purchase_price * qty : null,
+  };
+}
+
+function sortedCollection() {
+  const arr = collectionCards.slice();
+  const mi = (c) => cardMarketInfo(c);
+  const num = (v) => (v == null || isNaN(v)) ? null : v;
+  const cmp = {
+    added_desc: (a,b) => (b.id||0) - (a.id||0),                  // id ~ insertion order
+    added_asc:  (a,b) => (a.id||0) - (b.id||0),
+    name_asc:   (a,b) => (a.card_name||'').localeCompare(b.card_name||''),
+    set_desc:   (a,b) => (b.set_name||'').localeCompare(a.set_name||''),
+    paid_desc:  (a,b) => (num(mi(b).paid)  ?? -1) - (num(mi(a).paid)  ?? -1),
+    market_desc:(a,b) => (num(mi(b).value) ?? -1) - (num(mi(a).value) ?? -1),
+    change_desc:(a,b) => (num(mi(b).dayPct)?? -1e9) - (num(mi(a).dayPct)?? -1e9),
+    change_asc: (a,b) => (num(mi(a).dayPct)?? 1e9) - (num(mi(b).dayPct)?? 1e9),
+    gain_desc:  (a,b) => (num(mi(b).pnlPct)?? -1e9) - (num(mi(a).pnlPct)?? -1e9),
+    gain_asc:   (a,b) => (num(mi(a).pnlPct)?? 1e9) - (num(mi(b).pnlPct)?? 1e9),
+  }[collectionSort] || (() => 0);
+  return arr.sort(cmp);
+}
+
+function renderGallery(cards) {
+  const g = document.getElementById('cards-gallery');
+  g.innerHTML = cards.map(c => {
+    const cond = c.condition || 'NM';
+    const badgeClass = cond.startsWith('PSA') ? 'cond-PSA' : `cond-${cond}`;
+    const mi = cardMarketInfo(c);
+    const qty = c.quantity || 1;
+    const price = mi.value != null ? `$${mi.value.toFixed(2)}` : '—';
+    const day = mi.dayPct != null
+      ? `<span style="font-size:10px;font-weight:700;color:${mi.dayPct>=0?'#16A34A':'#DC2626'}">${mi.dayPct>=0?'▲':'▼'} ${Math.abs(mi.dayPct)}%</span>` : '';
+    const foil = FOIL_SHORT[c.foil_type] && FOIL_SHORT[c.foil_type] !== '—' ? ` · ${FOIL_SHORT[c.foil_type]}` : '';
+    return `<div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:transform .12s,box-shadow .12s;cursor:pointer;"
+        onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 20px rgba(0,0,0,.14)'"
+        onmouseout="this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'"
+        onclick="openMarket(${jsq(c.card_id)})" title="Open market view">
+      ${c.image_url
+        ? `<img src="${esc(c.image_url)}" style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;" onerror="this.style.opacity=0" />`
+        : `<div style="width:100%;aspect-ratio:3/4;background:#EDF2F7;"></div>`}
+      <div style="padding:7px 8px;">
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.card_name)}</div>
+        <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.set_name||'')}${c.number?' · #'+esc(c.number):''}</div>
+        <div class="flex items-center justify-between mt-1" style="gap:4px;">
+          <span class="condition-badge ${badgeClass}" style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;">${esc(cond)}${qty>1?` ×${qty}`:''}</span>
+          ${foil?`<span style="font-size:9px;color:var(--muted)">${foil.replace(' · ','')}</span>`:''}
+        </div>
+        <div class="flex items-center justify-between mt-1">
+          <span style="font-size:13px;font-weight:800;color:var(--blue)">${price}</span>
+          ${day}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderCollection() {
   _portfolioMarket = 0;
   _portfolioPnl    = 0;
@@ -1362,12 +1480,16 @@ function renderCollection() {
   count.textContent = collectionCards.length ? `(${collectionCards.length})` : '';
 
   if (!collectionCards.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="px-4 py-10 text-center text-slate-500">No cards yet — search and add some!</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="px-4 py-10 text-center text-slate-500">No cards yet — search and add some!</td></tr>';
+    document.getElementById('cards-gallery').innerHTML = '';
     return;
   }
 
+  const cards = sortedCollection();
+  if (collectionView === 'gallery') renderGallery(cards);
+
   let totalPaid = 0, paidCount = 0;
-  tbody.innerHTML = collectionCards.map(c => {
+  tbody.innerHTML = cards.map(c => {
     const cond = c.condition || 'NM';
     const badgeClass = cond.startsWith('PSA') ? 'cond-PSA' : `cond-${cond}`;
     const qty = c.quantity || 1;
@@ -1597,20 +1719,48 @@ async function deleteCard(id) {
 // ---- Import / export ----
 function openImport() {
   document.getElementById('import-result').classList.add('hidden');
+  document.getElementById('import-text').value = '';
+  const fi = document.getElementById('import-file'); fi.value = '';
+  const lbl = document.getElementById('import-file-label');
+  if (lbl) { lbl.textContent = 'Choose a CSV / TSV file…'; lbl.style.color = 'var(--muted)'; }
   document.getElementById('import-modal').classList.remove('hidden');
 }
 
-async function importFromText() {
-  const csv = document.getElementById('import-text').value.trim();
-  if (!csv) { toast('Paste some CSV rows first', 'error'); return; }
-  await runImport({ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({csv}) });
+// Show the chosen filename; picking a file clears any pasted text so there's no
+// ambiguity about which one IMPORT will use.
+function onImportFilePick() {
+  const f = document.getElementById('import-file').files[0];
+  const lbl = document.getElementById('import-file-label');
+  if (f) {
+    lbl.textContent = '📎 ' + f.name;
+    lbl.style.color = 'var(--text)';
+    document.getElementById('import-text').value = '';
+  } else {
+    lbl.textContent = 'Choose a CSV / TSV file…';
+    lbl.style.color = 'var(--muted)';
+  }
+}
+// Typing in the textarea clears a previously chosen file.
+function onImportTextInput() {
+  if (document.getElementById('import-text').value.trim()) {
+    const fi = document.getElementById('import-file');
+    if (fi.value) { fi.value = ''; onImportFilePick(); }
+  }
 }
 
-async function importFromFile() {
+// One button imports whichever input is provided — a selected file wins,
+// otherwise the pasted text. (Fixes the file picker silently doing nothing.)
+async function runUnifiedImport() {
   const f = document.getElementById('import-file').files[0];
-  if (!f) return;
-  const fd = new FormData(); fd.append('file', f);
-  await runImport({ method:'POST', body: fd });
+  const csv = document.getElementById('import-text').value.trim();
+  if (f) {
+    const fd = new FormData(); fd.append('file', f);
+    await runImport({ method:'POST', body: fd });
+  } else if (csv) {
+    await runImport({ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({csv}) });
+  } else {
+    toast('Choose a CSV file or paste some rows first', 'error');
+  }
 }
 
 async function runImport(opts) {
@@ -1626,6 +1776,9 @@ async function runImport(opts) {
       + (d.skipped ? ` · ${d.skipped} skipped (missing name)` : '')
       + (d.errors && d.errors.length ? `<br>⚠ ${d.errors.length} error(s): ${esc(d.errors.slice(0,3).join('; '))}` : '');
     toast(`Imported ${d.added} cards`, 'success');
+    // Clear inputs so a second import starts fresh.
+    document.getElementById('import-text').value = '';
+    const fi = document.getElementById('import-file'); fi.value = ''; onImportFilePick();
     await loadCollection();
   } catch(e) {
     toast('Error: ' + e.message, 'error');

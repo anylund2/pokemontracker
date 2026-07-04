@@ -205,6 +205,71 @@ def canon_finish(text: str) -> str:
     return FINISH_CANON.get(text.strip().lower(), text)
 
 
+# Finish → the eBay search keyword that actually narrows results. Plain holo /
+# normal add no keyword (over-narrows; titles are inconsistent); the set name is
+# deliberately omitted too (titles rarely include it) and verified from item
+# specifics afterward instead.
+_FINISH_EBAY_KW = {
+    "reverseHolofoil": "reverse holo",
+    "1stEditionHolofoil": "1st edition",
+    "1stEditionNormal": "1st edition",
+    "unlimitedHolofoil": "unlimited",
+}
+
+
+def build_ebay_query(name: str, number: str = "", set_name: str = "",
+                     finish: str = "", grade: str = "", language: str = "EN") -> str:
+    """Build a precise eBay sold-search query for a specific variant or grade.
+
+    Pure/offline. Narrows by name + number + the variant/grade keyword and adds
+    negative keywords to drop lots, bundles and fakes. Graded searches include
+    the grade (e.g. ``"PSA 10"``) and keep graded listings; raw searches exclude
+    every grader so a slabbed sale can't contaminate a raw median.
+    """
+    parts = [(name or "").strip()]
+    if number:
+        parts.append(str(number).strip())
+    fkw = _FINISH_EBAY_KW.get(finish, "")
+    if fkw:
+        parts.append(fkw)
+    if (language or "").upper() == "JP":
+        parts.append("japanese")
+
+    # Keep negatives conservative — "-fake"/"-proxy"/"-ace" would drop legit
+    # listings that say "no fakes/proxies" or are "Ace Spec" cards; the engine
+    # already rejects wrong items from item specifics.
+    negatives = ["-lot", "-bundle"]
+    if grade:
+        g = grade.replace("-", " ").strip()          # "PSA-10" → "PSA 10"
+        parts.append(f'"{g}"' if " " in g else g)
+    else:
+        negatives += ["-psa", "-bgs", "-cgc", "-sgc", "-graded", "-beckett"]
+    return " ".join(p for p in parts + negatives if p)
+
+
+def _norm_grade(g: str):
+    """('psa','10') from 'PSA-10'/'PSA 10'; ('','10') when the grader is absent."""
+    s = re.sub(r"\s|-", "", (g or "").lower())
+    m = re.search(r"(psa|bgs|cgc|sgc|ace|tag)?(10|\d(?:\.5)?)", s)
+    return (m.group(1) or "", m.group(2)) if m else ("", "")
+
+
+def grades_match(a: str, b: str):
+    """True/False if two grades clearly match/differ, None if undeterminable.
+
+    Numeric grade must match; graders must match only when both are stated (an
+    unlabelled '10' still matches a 'PSA 10' title)."""
+    ga, na = _norm_grade(a)
+    gb, nb = _norm_grade(b)
+    if not na or not nb:
+        return None
+    if na != nb:
+        return False
+    if ga and gb and ga != gb:
+        return False
+    return True
+
+
 # Condition severity, best → worst. Used to fall back within a printing.
 _COND_SEVERITY = ["NM", "LP", "MP", "HP", "DMG"]
 
@@ -498,10 +563,16 @@ def score_candidate(target: CardTarget, c: SaleCandidate) -> CandidateResult:
         return CandidateResult(c, 0, False, reject_reason="graded card")
     if target.graded and not feat["graded"]:
         return CandidateResult(c, 0, False, reject_reason="ungraded card")
-    if target.graded and feat["graded"] and target.grade and feat["grade"] \
-            and feat["grade"].replace(" ", "") != target.grade.replace(" ", ""):
-        return CandidateResult(c, 0, False,
-                               reject_reason=f"grade {feat['grade']} != {target.grade}")
+    # Grade must be CONFIRMED to match for graded targets. A different grade is
+    # rejected; a grade we can't read from title or item specifics is also
+    # rejected (never let an unverified slab into a per-grade median).
+    if target.graded and feat["graded"] and target.grade:
+        gm = grades_match(target.grade, feat["grade"])
+        if gm is False:
+            return CandidateResult(c, 0, False,
+                                   reject_reason=f"grade {feat['grade'] or '?'} != {target.grade}")
+        if gm is None:
+            return CandidateResult(c, 0, False, reject_reason="grade unconfirmed")
     # language (default english unless target says otherwise)
     if feat["language"] != target.language.lower():
         return CandidateResult(c, 0, False,

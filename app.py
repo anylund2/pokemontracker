@@ -18,6 +18,7 @@ import collection as col_db
 import auth
 from set_matcher import SET_ALIASES, generate_set_aliases, match_set_in_query
 from csv_import import parse_import_csv
+from tcg_resolve import pick_best_hit, verify_product_match
 
 load_dotenv()
 
@@ -318,6 +319,39 @@ def _tcgplayer_image(product_id) -> str:
     return f"https://tcgplayer-cdn.tcgplayer.com/product/{product_id}_in_1000x1000.jpg"
 
 
+def _tcg_product_meta(product_id: str) -> dict:
+    """Actual TCGplayer product metadata (name/set/number/rarity) for a productId,
+    used to verify a resolved product really is the card. Cached; {} on failure."""
+    if not product_id:
+        return {}
+    ck = f"tcgmeta_{product_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+    meta = {}
+    try:
+        body = {"algorithm": "", "from": 0, "size": 1,
+                "filters": {"term": {"productLineName": ["pokemon"],
+                                     "productId": [str(product_id)]},
+                            "range": {}, "match": {}},
+                "context": {"cart": {}, "shippingCountry": "US"}, "sort": {}}
+        r = requests.post(
+            "https://mp-search-api.tcgplayer.com/v1/search/request?q=&isList=false",
+            json=body, headers=dict(_TCG_H, **{"Content-Type": "application/json"}),
+            timeout=10)
+        hits = (r.json().get("results") or [{}])[0].get("results", [])
+        if hits:
+            x = hits[0]
+            meta = {"productName": x.get("productName", ""),
+                    "setName": x.get("setName", ""),
+                    "number": (x.get("customAttributes", {}) or {}).get("number", ""),
+                    "rarity": x.get("rarityName", "")}
+    except Exception:
+        pass
+    cache_set(ck, meta)
+    return meta
+
+
 def search_tcgplayer_jp(query: str = "", limit: int = 24,
                         set_name: str = "") -> list[dict]:
     """
@@ -575,17 +609,23 @@ def _resolve_tcg_product_id(card_id: str = "", card_name: str = "",
         _TCG_PID_CACHE[card_id] = pid
         return pid
 
+    # 1. Authoritative path: the prices.pokemontcg.io redirect is keyed by
+    #    card_id, so it lands on the EXACT variant (regular vs shiny/SL, etc.).
+    #    Retry once — a transient miss here is what lets the fuzzy fallback grab
+    #    the wrong variant (e.g. the shiny Rayquaza priced as the regular one).
     pid = ""
-    if card_id:
-        try:
-            redir = requests.get(
-                f"https://prices.pokemontcg.io/tcgplayer/{card_id}",
-                headers=_TCG_H, allow_redirects=True, timeout=8)
-            m = re.search(r"/product/(\d+)", redir.url)
-            if m:
-                pid = m.group(1)
-        except Exception:
-            pass
+    if card_id and not card_id.startswith("tcgjp-"):
+        for _attempt in range(2):
+            try:
+                redir = requests.get(
+                    f"https://prices.pokemontcg.io/tcgplayer/{card_id}",
+                    headers=_TCG_H, allow_redirects=True, timeout=8)
+                m = re.search(r"/product/(\d+)", redir.url)
+                if m:
+                    pid = m.group(1)
+                    break
+            except Exception:
+                pass
 
     if not pid and card_name:
         try:
@@ -603,20 +643,9 @@ def _resolve_tcg_product_id(card_id: str = "", card_name: str = "",
                 timeout=12)
             if r.ok:
                 hits = (r.json().get("results") or [{}])[0].get("results", [])
-                name_tokens = [t for t in card_name.lower().split() if len(t) > 1]
-                best, best_score = None, 0
-                for x in hits:
-                    pn = (x.get("productName") or "").lower()
-                    sn = (x.get("setName") or "").lower()
-                    score = sum(1 for t in name_tokens if t in pn)
-                    if set_name and set_name.lower() in sn:
-                        score += 3
-                    if number and re.search(rf"\b0*{re.escape(number)}\b", pn + " " + sn):
-                        score += 2
-                    if score > best_score:
-                        best, best_score = x, score
-                if best and best_score >= 2:
-                    pid = str(int(best["productId"]))
+                # Variant-aware scoring picks the shiny (SL##) product over the
+                # regular one instead of letting them tie (see tcg_resolve).
+                pid = pick_best_hit(hits, card_name, set_name, number) or ""
         except Exception:
             pass
 
@@ -1941,21 +1970,52 @@ def get_card_price():
             except Exception:
                 pass
 
-        if not sold:
-            # No API key or API returned nothing — scrape eBay completed listings
-            sold = _scrape_ebay_sold(kw)
-
         if sold:
+            # eBay Finding API results (no item specifics) — average recent.
             last5 = sold[:5]
             prices = [s["price"] for s in last5]
             result["ebayLast5"] = last5
             result["ebayAvg"]   = round(sum(prices) / len(prices), 2)
-            # For graded cards, also save daily snapshot using eBay avg
-            if db_id:
-                try:
-                    col_db.save_price_snapshot(db_id, None, result["ebayAvg"])
-                except Exception:
-                    pass
+        else:
+            # Common path: precise graded query + per-item specifics, run through
+            # the engine so ONLY same-grade slabs count → median, not a naive
+            # average of whatever a title search returned.
+            from pricing_engine import (CardTarget, SaleCandidate, evaluate,
+                                         build_ebay_query)
+            import statistics as _stats
+            gkw = build_ebay_query(card_name, number, set_name,
+                                   finish=foil_type, grade=grade_str)
+            raw_g = _scrape_ebay_sold_detailed(gkw, max_items=80, max_details=40)
+            gcands = []
+            for s in raw_g:
+                if not s.get("price"):
+                    continue
+                ship = float(s.get("shipping") or 0)
+                gcands.append(SaleCandidate(
+                    price=round(float(s["price"]) + ship, 2), title=s.get("title", ""),
+                    url=s.get("url", ""), date=s.get("date") or s.get("endTime", ""),
+                    source="ebay", subtitle=s.get("ebayCondition", ""),
+                    official_condition=s.get("conditionDisplayName", ""),
+                    item_specifics=s.get("itemSpecifics", {}) or {}, shipping=ship))
+            gtarget = CardTarget(name=card_name, set_name=set_name, number=number,
+                                 finish=foil_type or "", condition=condition,
+                                 graded=True, grade=condition)
+            matched = sorted((m for m in evaluate(gtarget, gcands)["matched"]
+                              if not m.get("outlier")),
+                             key=lambda m: m.get("date", ""), reverse=True)
+            if matched:
+                result["ebayLast5"] = [{"price": m["price"], "title": m.get("title", ""),
+                                        "url": m.get("url", ""), "endTime": m.get("date", "")}
+                                       for m in matched[:5]]
+                result["ebayAvg"] = round(_stats.median(m["price"] for m in matched), 2)
+                result["ebayGradeMatched"] = len(matched)
+
+        # Save the daily snapshot from whichever eBay figure we computed.
+        if result.get("ebayAvg") and db_id:
+            try:
+                col_db.save_price_snapshot(db_id, None, result["ebayAvg"])
+            except Exception:
+                pass
 
     elif not is_graded and card_name:
         # Non-graded card: always fetch eBay completed sales for market data
@@ -2236,6 +2296,16 @@ def market_card_data():
     tcg_product_id = passed_pid or _resolve_tcg_product_id(card_id, card_name, set_name, number)
     if tcg_product_id:
         result["tcgProductId"] = tcg_product_id
+        # Recognition/verification: confirm the resolved product really is this
+        # card by cross-checking TCGplayer's own product name/number/rarity.
+        # Catches mis-resolution like a shiny (SL##) priced as the regular card.
+        meta = _tcg_product_meta(tcg_product_id)
+        if meta:
+            result["verification"] = verify_product_match(
+                card_name, set_name, number,
+                meta.get("productName", ""), meta.get("setName", ""),
+                meta.get("number", ""), meta.get("rarity", ""))
+            result["tcgProductName"] = meta.get("productName", "")
 
     # ── Collect raw candidate sales from both sources, then run them through
     #    the strict matching/scoring engine so only validated sales are used.
@@ -2339,13 +2409,12 @@ def market_ebay_sold():
     if cached:
         return jsonify(cached)
 
-    # Search BROADLY (name + number, + "reverse holo" only when needed): the set
-    # name rarely appears in titles and over-narrows results.  Exact set / finish
-    # are verified afterward from each item's official item specifics.
-    foil_kw = "reverse holo" if foil_type == "reverseHolofoil" else ""
-    lang_kw = "japanese" if is_jp else ""
-    ebay_kw = " ".join(filter(None, [card_name, number, foil_kw, lang_kw])) \
-              + " -PSA -BGS -CGC -graded -beckett -SGC -lot -bundle"
+    # Precise per-variant query (name + number + variant keyword + graded
+    # excludes); the set name is intentionally omitted (titles rarely include it)
+    # and verified afterward from each item's official item specifics.
+    from pricing_engine import build_ebay_query
+    ebay_kw = build_ebay_query(card_name, number, set_name,
+                               finish=foil_type, language=language)
     raw_ebay = _scrape_ebay_sold_detailed(ebay_kw, max_items=120, max_details=60)
 
     candidates = []

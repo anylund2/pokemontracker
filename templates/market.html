@@ -206,7 +206,8 @@
             onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'" />
           <div class="flex-1 min-w-0" style="position:relative;z-index:1;">
             <div id="det-name" style="font-family:var(--pixel);font-size:12px;margin-bottom:8px;line-height:1.7;"></div>
-            <div id="det-meta" class="text-xs mb-3" style="color:var(--muted);"></div>
+            <div id="det-meta" class="text-xs mb-2" style="color:var(--muted);"></div>
+            <div id="det-verify" class="mb-3" style="display:none;"></div>
             <div id="det-price-row" class="flex flex-wrap gap-2"></div>
             <div id="det-shop-row" class="flex flex-wrap gap-2 mt-3"></div>
             <button onclick="openMarketAdd(currentCard, currentPrinting)"
@@ -379,6 +380,22 @@ function openImgZoom(src){
   if(!src) return;
   document.getElementById('img-zoom-img').src = src;
   document.getElementById('img-zoom').style.display = 'flex';
+}
+
+// Recognition badge: did the resolved TCGplayer product actually match this card?
+function renderVerify(v, productName){
+  const el = document.getElementById('det-verify');
+  if(!el) return;
+  if(!v || v.status === 'unverified'){ el.style.display='none'; return; }
+  el.style.display='';
+  const ok = v.status === 'verified';
+  const bg = ok ? '#ECFDF5' : '#FEF2F2', bd = ok ? '#6EE7B7' : '#FCA5A5',
+        fg = ok ? '#047857' : '#B91C1C', ic = ok ? '✓' : '⚠';
+  const title = ok ? `Matched TCGplayer${productName?': '+esc(productName):''}`
+                   : `Check variant — resolved “${esc(productName||'?')}”`;
+  el.innerHTML = `<span title="${esc((v.reasons||[]).join(' · '))}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:${bg};border:1px solid ${bd};color:${fg};cursor:default;">
+      <span>${ic}</span><span>${title}</span>
+      <span style="opacity:.7;font-weight:600;">${v.confidence}%</span></span>`;
 }
 
 // Pokemon energy-type → accent color (fallback when image sampling is blocked).
@@ -706,6 +723,8 @@ async function selectCard(card) {
   }
 
   document.getElementById('det-loading').textContent = '';
+
+  renderVerify(cardData.verification, cardData.tcgProductName);
 
   // Price chips
   const mkt = cardData.tcgMarket || {};
